@@ -131,6 +131,89 @@
     socket.on('order_final_status', data => {
         alert(data.status === 'accepted' ? `✅ ${data.from} қабылдады!` : `❌ Бас тартты`);
     });
+
+
+// 1. Тіркелу кезінде телефон нөмірін сұрау
+function startTracking() {
+    myName = prompt("Атыңызды жазыңыз:");
+    myPhone = prompt("Телефон нөміріңізді жазыңыз (мысалы, +7...):");
+    const role = prompt("Рөліңізді таңдаңыз (🛠, ⚡, 🛒, 📦):", "🛠");
+    
+    if (!myName || !myPhone) return alert("Атыңыз бен нөміріңізді жазу міндетті!");
+
+    socket.emit('register', { id: myName, phone: myPhone });
+
+    navigator.geolocation.watchPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        socket.emit('send_location', { 
+            id: myName, 
+            phone: myPhone, 
+            role: role, 
+            lat: latitude, 
+            lng: longitude 
+        });
+    });
+}
+
+// 2. Клиент тапсырыс бергенде өз нөмірін қоса жібереді
+function orderService(providerId) {
+    if (!myName || !myPhone) {
+        alert("Алдымен 'Жұмысқа шығу' немесе 'Тіркелу' арқылы деректеріңізді енгізіңіз!");
+        return;
+    }
+    socket.emit('order_request', { 
+        to: providerId, 
+        from: myName, 
+        fromPhone: myPhone 
+    });
+    alert("Тапсырыс жіберілді. Маман жауабын күтіңіз...");
+}
+
+// 3. Маман тапсырысты қабылдағанда
+socket.on('order_received', (data) => {
+    if (confirm(`ЖАҢА ТАПСЫРЫС!\nКімнен: ${data.from}\nТелефон: ${data.fromPhone}\nҚабылдайсыз ба?`)) {
+        socket.emit('order_response', { 
+            toClient: data.from, 
+            from: myName, 
+            fromPhone: myPhone, 
+            status: 'accepted' 
+        });
+        showActiveOrder(data.from, data.fromPhone);
+    }
+});
+
+// 4. Клиентке маманның нөмірін көрсету және аяқтау батырмасы
+socket.on('order_final_status', (data) => {
+    if (data.status === 'accepted') {
+        alert(`✅ ${data.from} қабылдады! \nБайланыс телефоны: ${data.fromPhone}`);
+        showActiveOrder(data.from, data.fromPhone);
+    }
+});
+
+// Тапсырыс барысын бақылау терезесі
+function showActiveOrder(name, phone) {
+    const statusDiv = document.createElement('div');
+    statusDiv.id = "active-order-panel";
+    statusDiv.style = "position:fixed; top:80px; left:50%; transform:translateX(-50%); background:white; padding:20px; border-radius:15px; z-index:2000; box-shadow:0 5px 15px rgba(0,0,0,0.3); text-align:center; width:80%;";
+    statusDiv.innerHTML = `
+        <h3>Белсенді тапсырыс</h3>
+        <p>Аты: <b>${name}</b></p>
+        <p>Телефон: <a href="tel:${phone}">${phone}</a></p>
+        <button onclick="finishOrder()" style="background: #e67e22; color:white; border:none; padding:10px; border-radius:5px;">Тапсырыс аяқталды</button>
+    `;
+    document.body.appendChild(statusDiv);
+}
+
+function finishOrder() {
+    if(confirm("Тапсырыс толық орындалды ма?")) {
+        document.getElementById('active-order-panel').remove();
+        alert("Тапсырыс аяқталды! Рақмет.");
+        // Бұл жерде базаға 'completed' статусын жіберуге болады
+    }
+}
+
+
+    
 </script>
 </body>
 </html>
