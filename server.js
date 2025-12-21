@@ -1,65 +1,56 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { Pool } = require('pg'); // PostgreSQL кітапханасы
 
 const app = express();
 const server = http.createServer(app);
 
-// CORS баптауын дұрыстау
-const io = new Server(server, {
-    cors: {
-        origin: "*", // Барлық сайттарға рұқсат беру
-        methods: ["GET", "POST"]
-    },
-    transports: ['websocket', 'polling'] // Байланыс түрлерін анықтау
+// 1. БАЗАҒА ҚОСЫЛУ (Render-ден алған External Database URL-ді осында қойыңыз)
+const pool = new Pool({
+  connectionString: "СІЗДІҢ_DATABASE_URL_ОСЫНДА", 
+  ssl: { rejectUnauthorized: false }
 });
 
-app.get('/', (req, res) => {
-    res.send('Сервер жұмыс істеп тұр!');
+// 2. КЕСТЕНІ АВТОМАТТЫ ТҮРДЕ ЖАСАУ
+// Бұл бөлік сервер қосылғанда базада кесте бар-жоғын тексереді
+pool.query(`
+  CREATE TABLE IF NOT EXISTS locations (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT,
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
+    time TIMESTAMP DEFAULT NOW()
+  )
+`).then(() => console.log("Базадағы 'locations' кестесі дайын!"))
+  .catch(err => console.error("Кесте жасау қатесі:", err));
+
+// 3. SOCKET.IO БАПТАУЫ
+const io = new Server(server, {
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
+
+app.get('/', (req, res) => res.send('Сервер жұмыс істеп тұр!'));
 
 io.on('connection', (socket) => {
-    console.log('Жаңа қолданушы қосылды: ' + socket.id);
+    console.log('Жаңа қолданушы: ' + socket.id);
 
-    socket.on('send_location', (data) => {
-        console.log('Координата келді:', data);
+    socket.on('send_location', async (data) => {
+        // МАМАН ОРНЫН БАЗАҒА САҚТАУ
+        try {
+            await pool.query(
+                'INSERT INTO locations (user_id, lat, lng) VALUES ($1, $2, $3)',
+                [data.id, data.lat, data.lng]
+            );
+            console.log(`Сақталды: ${data.id}`);
+        } catch (err) {
+            console.error("Сақтау қатесі:", err);
+        }
+
         // Ақпаратты басқаларға тарату
         socket.broadcast.emit('receive_location', data);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Қолданушы шықты');
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Сервер ${PORT} портында қосылды`);
-});
-
-
-
-const { Pool } = require('pg'); // PostgreSQL кітапханасы
-
-// Базаға қосылу сілтемесі (Render-ден алған сілтемені осында қоясыз)
-const pool = new Pool({
-  connectionString: "СІЗДІҢ_DATABASE_URL_ОСЫНДА",
-  ssl: { rejectUnauthorized: false }
-});
-
-// Маман орнын базаға сақтау функциясы
-async function saveLocation(id, lat, lng) {
-  const query = 'INSERT INTO locations (user_id, lat, lng, time) VALUES ($1, $2, $3, NOW())';
-  try {
-    await pool.query(query, [id, lat, lng]);
-  } catch (err) {
-    console.error("Базаға сақтау қатесі:", err);
-  }
-}
-
-// Socket.io ішінде қолдану
-socket.on('send_location', (data) => {
-    saveLocation(data.id, data.lat, data.lng); // Базаға жазу
-    io.emit('receive_location', data); // Басқаларға тарату
-});
-
+server.listen(PORT, () => console.log(`Сервер қосылды: ${PORT}`));
