@@ -18,7 +18,7 @@ app.post('/save-location', async (req, res) => {
 
     // СЕРВЕРЛІК ТЕКСЕРУ (Шектеулер)
     if (!name || name.length < 2) return res.status(400).send("Аты қате");
-    if (!phone || !/^[0-9]{11}$/.test(phone)) return res.status(400).send("Телефон қате");
+    if (!phone || !/^[0-9]{12}$/.test(phone)) return res.status(400).send("Телефон қате");
     if (!job || job.length < 3) return res.status(400).send("Мамандық қате");
 
     try {
