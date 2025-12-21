@@ -1,1 +1,62 @@
-eueueueyeye
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QuickMap Service</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 90vh; width: 100%; border-radius: 10px; }
+        .menu { height: 10vh; display: flex; align-items: center; justify-content: center; background: #2c3e50; color: white; }
+        button { padding: 10px 20px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="menu">
+        <button onclick="startTracking()">Мен жұмысқа шықтым (GPS қосу)</button>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. Картаны баптау (Алматы орталығы)
+        var map = L.map('map').setView([43.2389, 76.8897], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // 2. Серверге қосылу (Render сілтемесін кейін осында қоясыз)
+        const socket = io("https://СІЗДІҢ-СЕРВЕР-АТЫ.onrender.com"); 
+
+        var myMarker;
+
+        // 3. Маманның орнын бақылау функциясы
+        function startTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition((position) => {
+                    const { latitude, longitude } = position.coords;
+
+                    // Өз маркерімізді жылжыту
+                    if (myMarker) {
+                        myMarker.setLatLng([latitude, longitude]);
+                    } else {
+                        myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен осындамын").openPopup();
+                    }
+                    map.setView([latitude, longitude]);
+
+                    // Координатаны серверге жіберу
+                    socket.emit('send_location', {
+                        id: "worker_1",
+                        lat: latitude,
+                        lng: longitude
+                    });
+                });
+            }
+        }
+
+        // 4. Басқа мамандар қозғалса, оларды картада көрсету
+        socket.on('receive_location', (data) => {
+            console.log("Жаңа координата келді:", data);
+            L.marker([data.lat, data.lng]).addTo(map).bindPopup("Басқа маман").openPopup();
+        });
+    </script>
+</body>
+</html>
