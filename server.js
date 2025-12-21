@@ -6,8 +6,7 @@ const { Pool } = require('pg');
 const app = express();
 const server = http.createServer(app);
 const pool = new Pool({
-  // Мұнда "base" деген сөзді өшіріп, Render-ден алған Internal URL-ді қойыңыз
-  connectionString: process.env.DATABASE_URL, 
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
