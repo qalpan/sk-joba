@@ -32,22 +32,25 @@ const io = new Server(server, {
 
 app.get('/', (req, res) => res.send('Сервер жұмыс істеп тұр!'));
 
+const users = {}; // Қолданушыларды сақтау: { "Асхат": "socket_id_123" }
+
 io.on('connection', (socket) => {
-    console.log('Жаңа қолданушы: ' + socket.id);
+    // Қолданушы тіркелгенде оның ID-ін сақтау
+    socket.on('register', (userId) => {
+        users[userId] = socket.id;
+        console.log(`${userId} жүйеге тіркелді`);
+    });
 
-    socket.on('send_location', async (data) => {
-        // МАМАН ОРНЫН БАЗАҒА САҚТАУ
-        try {
-            await pool.query(
-                'INSERT INTO locations (user_id, lat, lng) VALUES ($1, $2, $3)',
-                [data.id, data.lat, data.lng]
-            );
-            console.log(`Сақталды: ${data.id}`);
-        } catch (err) {
-            console.error("Сақтау қатесі:", err);
+    // Тапсырыс сигналын бағыттау
+    socket.on('order_request', (data) => {
+        const targetSocketId = users[data.to];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('order_received', data);
         }
+    });
 
-        // Ақпаратты басқаларға тарату
+    socket.on('send_location', (data) => {
+        users[data.id] = socket.id; // Орын келген сайын ID жаңарту
         socket.broadcast.emit('receive_location', data);
     });
 });
