@@ -9,8 +9,7 @@
         body { margin: 0; font-family: sans-serif; }
         #map { height: 100vh; width: 100%; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 10px; background: white; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .admin-btn { position: fixed; top: 10px; right: 10px; z-index: 1000; opacity: 0.1; } /* Жасырын админ батырмасы */
-        .order-panel { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; padding: 20px; border-radius: 15px; z-index: 2000; box-shadow: 0 5px 25px rgba(0,0,0,0.3); text-align: center; }
+        .admin-btn { position: fixed; top: 10px; right: 10px; z-index: 1000; opacity: 0.1; }
     </style>
 </head>
 <body>
@@ -21,15 +20,20 @@
     <div id="map"></div>
 
     <div class="nav">
-        <button onclick="filter('🛠')">🛠 Сервис</button>
-        <button onclick="filter('🛒')">🛒 Тауар</button>
+        <button onclick="filterMarkers('🛠')">🛠 Сервис</button>
+        <button onclick="filterMarkers('🛒')">🛒 Тауар</button>
+        <button onclick="filterMarkers('all')">🌍 Барлығы</button>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const socket = io("https://sk-joba.onrender.com");
+        // СЕРВЕРГЕ ҚОСЫЛУ (Қате болса консольден көреміз)
+        const socket = io("https://sk-joba.onrender.com", {
+            transports: ["polling", "websocket"]
+        });
+
         const map = L.map('map').setView([43.238, 76.889], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -40,22 +44,38 @@
             myPhone = prompt("Телефон нөміріңіз:");
             let role = prompt("Рөліңіз (🛠 немесе 🛒):", "🛠");
             
-            navigator.geolocation.watchPosition(pos => {
-                socket.emit('send_location', { id: myName, phone: myPhone, role: role, lat: pos.coords.latitude, lng: pos.coords.longitude });
-            });
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    socket.emit('send_location', { id: myName, phone: myPhone, role: role, lat: pos.coords.latitude, lng: pos.coords.longitude });
+                });
+            }
         }
 
         socket.on('receive_location', data => {
-            if (markers[data.id]) { markers[data.id].setLatLng([data.lat, data.lng]); }
-            else {
-                markers[data.id] = L.marker([data.lat, data.lng]).addTo(map)
+            if (markers[data.id]) {
+                markers[data.id].setLatLng([data.lat, data.lng]);
+            } else {
+                let m = L.marker([data.lat, data.lng]).addTo(map)
                     .bindPopup(`<b>${data.id}</b><br><button onclick="order('${data.id}')">Тапсырыс беру</button>`);
+                m.role = data.role; // Сүзгі үшін маңызды
+                markers[data.id] = m;
             }
         });
 
+        function filterMarkers(role) {
+            Object.keys(markers).forEach(id => {
+                if (role === 'all' || markers[id].role === role) {
+                    map.addLayer(markers[id]);
+                } else {
+                    map.removeLayer(markers[id]);
+                }
+            });
+        }
+
         function order(id) {
+            if(!myName) return alert("Алдымен тіркеліңіз!");
             socket.emit('order_request', { to: id, from: myName, fromPhone: myPhone });
-            alert("Сұраныс кетті...");
+            alert("Сұраныс жіберілді...");
         }
 
         socket.on('order_received', data => {
@@ -64,9 +84,6 @@
             }
         });
 
-        socket.on('error_message', msg => alert(msg));
-
-        // АДМИН ПАНЕЛЬ
         function openAdmin() {
             let pass = prompt("Құпия сөз:");
             if (pass === "2025") {
