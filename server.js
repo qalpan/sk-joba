@@ -4,16 +4,27 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS баптауын дұрыстау
 const io = new Server(server, {
-    cors: { origin: "*" } // Барлық жерден қосылуға рұқсат
+    cors: {
+        origin: "*", // Барлық сайттарға рұқсат беру
+        methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling'] // Байланыс түрлерін анықтау
+});
+
+app.get('/', (req, res) => {
+    res.send('Сервер жұмыс істеп тұр!');
 });
 
 io.on('connection', (socket) => {
-    console.log('Қолданушы қосылды');
+    console.log('Жаңа қолданушы қосылды: ' + socket.id);
 
-    // Маманнан дерек келгенде, оны барлығына тарату
     socket.on('send_location', (data) => {
-        io.emit('receive_location', data);
+        console.log('Координата келді:', data);
+        // Ақпаратты басқаларға тарату
+        socket.broadcast.emit('receive_location', data);
     });
 
     socket.on('disconnect', () => {
@@ -23,5 +34,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Сервер ${PORT} портында қосулы`);
+    console.log(`Сервер ${PORT} портында қосылды`);
 });
