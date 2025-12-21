@@ -51,77 +51,55 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <script>
-        const socket = io("https://sk-joba.onrender.com"); // Render сілтемесін тексеріңіз
-        const map = L.map('map', { zoomControl: false }).setView([43.238, 76.889], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+<script>
+    const socket = io("https://sk-joba.onrender.com");
+    let myName = "";
 
-        let myMarker;
-        const markers = {}; 
-        let currentRole = "🛒"; // Әдепкі рөл
+    function startTracking() {
+        myName = prompt("Атыңызды жазыңыз:");
+        const role = prompt("Рөліңізді таңдаңыз (🛠, ⚡, 🛒, 📦):", "🛠");
+        
+        // Серверге өзімізді тіркейміз
+        socket.emit('register', myName);
 
-        // Түріне қарай маманды таңдау
-        function filterMarkers(role) {
-            currentRole = role;
-            alert("Сіз таңдаған санат: " + (role === 'all' ? 'Барлығы' : role));
-            // Бұл жерде картадағы маркерлерді жасыру логикасын қосуға болады
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((position) => {
+                const { latitude, longitude } = position.coords;
+                socket.emit('send_location', { id: myName, role: role, lat: latitude, lng: longitude });
+                // Өз маркерімізді көрсету...
+            });
         }
+    }
 
-        function startTracking() {
-            const name = prompt("Атыңызды жазыңыз:");
-            const role = prompt("Рөліңізді таңдаңыз (🛠, ⚡, 🛒, 📦):", "🛠");
-            
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition((position) => {
-                    const { latitude, longitude } = position.coords;
-                    
-                    if (!myMarker) {
-                        myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен: " + name).openPopup();
-                    } else {
-                        myMarker.setLatLng([latitude, longitude]);
-                    }
-                    map.setView([latitude, longitude], 15);
+    // 1. КЛИЕНТ: Тапсырыс жіберу
+    function orderService(providerId) {
+        if (!myName) myName = "Қонақ_" + Math.floor(Math.random() * 1000);
+        socket.emit('order_request', { to: providerId, from: myName });
+        alert(providerId + " маманға сұраныс кетті. Жауап күтіңіз...");
+    }
 
-                    socket.emit('send_location', { id: name, role: role, lat: latitude, lng: longitude });
-                });
-            }
+    // 2. МАМАН: Тапсырысты қабылдау
+    socket.on('order_received', (data) => {
+        const audio = new Audio('https://www.soundjay.com/buttons/beep-01a.mp3');
+        audio.play(); // Тапсырыс келгенде дыбыс шығару
+        
+        if (confirm(`ЖАҢА ТАПСЫРЫС!\nТапсырыс беруші: ${data.from}\nҚабылдайсыз ба?`)) {
+            socket.emit('order_response', { toClient: data.from, from: myName, status: 'accepted' });
+        } else {
+            socket.emit('order_response', { toClient: data.from, from: myName, status: 'rejected' });
         }
+    });
 
-        socket.on('receive_location', (data) => {
-            if (markers[data.id]) {
-                markers[data.id].setLatLng([data.lat, data.lng]);
-            } else {
-                const icon = L.divIcon({
-                    html: `<div style="font-size: 24px;">${data.role}</div>`,
-                    className: 'custom-div-icon'
-                });
-                markers[data.id] = L.marker([data.lat, data.lng], { icon: icon }).addTo(map)
-                    .bindPopup(`<b>${data.role} ${data.id}</b><br><button onclick="orderService('${data.id}')">Тапсырыс беру</button>`);
-            }
-        });
-
-       function orderService(providerId) {
-    const clientName = prompt("Атыңызды және телефоныңызды жазыңыз:");
-    if (clientName) {
-        // Маманға сигнал жіберу
-        socket.emit('order_request', {
-            to: providerId, // Маманның ID-і
-            from: clientName, // Клиенттің аты
-            location: myMarker ? myMarker.getLatLng() : null // Клиенттің орны
-        });
-        alert("Тапсырыс жіберілді. Маманның жауабын күтіңіз...");
-    }
-}
-
-// Маман жағында тапсырысты қабылдау
-socket.on('order_received', (data) => {
-    // Маманның телефонында дыбыс шығару немесе хабарлама көрсету
-    const accept = confirm(`ЖАҢА ТАПСЫРЫС!\nКімнен: ${data.from}\nҚабылдайсыз ба?`);
-    if (accept) {
-        socket.emit('order_response', { to: data.from, status: 'accepted' });
-        alert("Тапсырыс қабылданды! Клиентке хабарлама жіберілді.");
-    }
-});
-    </script>
+    // 3. КЛИЕНТ: Маманның жауабын алу
+    socket.on('order_final_status', (data) => {
+        if (data.status === 'accepted') {
+            alert(`✅ ${data.providerName} тапсырысты қабылдады! Ол сізге қарай жолға шықты.`);
+        } else {
+            alert(`❌ Кешіріңіз, ${data.providerName} қазір бос емес.`);
+        }
+    });
+    
+    // Картадағы маркерлерді суреттеу коды (алдыңғы кодпен бірдей)...
+</script>
 </body>
 </html>
