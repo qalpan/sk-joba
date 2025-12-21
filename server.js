@@ -83,3 +83,32 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Сервер қосылды`));
+
+app.post('/save-location', async (req, res) => {
+    const { name, phone, job, lat, lon } = req.body;
+
+    // 1. Барлық өрістің толтырылғанын тексеру
+    if (!name || !phone || !job) {
+        return res.status(400).json({ error: "Барлық өрісті толтырыңыз!" });
+    }
+
+    // 2. Телефон нөмірін тексеру (мысалы, тек 11 сан)
+    const phoneRegex = /^[0-9]{11}$/;
+    if (!phoneRegex.test(phone)) {
+        return res.status(400).json({ error: "Телефон нөмірі қате! (11 сан болуы керек)" });
+    }
+
+    // 3. Аты-жөні тым қысқа болмауы керек
+    if (name.length < 2) {
+        return res.status(400).json({ error: "Аты-жөні тым қысқа!" });
+    }
+
+    try {
+        // Осы жерде барып қана базаға сақтаймыз
+        await pool.query('INSERT INTO users ...');
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Сервер қатесі");
+    }
+});
