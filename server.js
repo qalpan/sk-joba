@@ -45,14 +45,24 @@ io.on('connection', (socket) => {
     });
 
     socket.on('order_request', (data) => {
-        const target = onlineUsers[data.to];
-        if (target) io.to(target).emit('order_received', { from: data.from });
-    });
+    const target = onlineUsers[data.to];
+    if (target) {
+        io.to(target).emit('order_received', { 
+            from: data.from, 
+            fromPhone: data.fromPhone // Телефон нөмірін қостық
+        });
+    }
+});
 
-    socket.on('order_response', (data) => {
-        const client = onlineUsers[data.toClient];
-        if (client) io.to(client).emit('order_final_status', data);
-    });
+socket.on('order_response', (data) => {
+    const client = onlineUsers[data.toClient];
+    if (client) {
+        io.to(client).emit('order_final_status', { 
+            status: data.status, 
+            from: data.from, 
+            fromPhone: data.fromPhone // Маманның нөмірі
+        });
+    }
 });
 
 server.listen(process.env.PORT || 3000);
