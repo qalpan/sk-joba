@@ -69,3 +69,17 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Сервер іске қосылды: ${PORT}`));
+
+app.get('/active-categories', async (req, res) => {
+    const result = await pool.query(`
+        SELECT DISTINCT role FROM locations 
+        WHERE time > NOW() - INTERVAL '10 minutes'
+    `);
+    res.json(result.rows); // Тек қазір жұмыс істеп тұрған санаттарды қайтарады
+});
+
+
+
+
+
+
