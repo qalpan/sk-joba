@@ -100,9 +100,28 @@
             }
         });
 
-        function orderService(id) {
-            alert(id + " маманға тапсырыс жіберілді! Жауап күтіңіз.");
-        }
+       function orderService(providerId) {
+    const clientName = prompt("Атыңызды және телефоныңызды жазыңыз:");
+    if (clientName) {
+        // Маманға сигнал жіберу
+        socket.emit('order_request', {
+            to: providerId, // Маманның ID-і
+            from: clientName, // Клиенттің аты
+            location: myMarker ? myMarker.getLatLng() : null // Клиенттің орны
+        });
+        alert("Тапсырыс жіберілді. Маманның жауабын күтіңіз...");
+    }
+}
+
+// Маман жағында тапсырысты қабылдау
+socket.on('order_received', (data) => {
+    // Маманның телефонында дыбыс шығару немесе хабарлама көрсету
+    const accept = confirm(`ЖАҢА ТАПСЫРЫС!\nКімнен: ${data.from}\nҚабылдайсыз ба?`);
+    if (accept) {
+        socket.emit('order_response', { to: data.from, status: 'accepted' });
+        alert("Тапсырыс қабылданды! Клиентке хабарлама жіберілді.");
+    }
+});
     </script>
 </body>
 </html>
