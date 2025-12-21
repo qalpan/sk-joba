@@ -1,110 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="kk">
 <head>
-    <title>QuickMap Service</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Service Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        #map { height: 90vh; width: 100%; border-radius: 10px; }
-        .menu { height: 10vh; display: flex; align-items: center; justify-content: center; background: #2c3e50; color: white; }
-        button { padding: 10px 20px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 5px; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        
+        /* Төменгі мәзір дизайны */
+        .bottom-nav {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; display: flex; gap: 10px; background: rgba(255, 255, 255, 0.9);
+            padding: 15px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px); width: 90%; max-width: 400px; justify-content: center;
+        }
+        
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; transition: 0.3s; padding: 5px;
+        }
+        .nav-item:hover { transform: translateY(-5); color: #3498db; }
+        .nav-item span { font-size: 20px; }
+        .nav-item label { font-size: 10px; font-weight: bold; margin-top: 5px; }
+
+        /* "Жұмысқа шығу" батырмасы */
+        .work-btn {
+            position: fixed; top: 20px; right: 20px; z-index: 1000;
+            background: #27ae60; color: white; border: none; padding: 12px 20px;
+            border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-    <div class="menu">
-        <button onclick="startTracking()">Мен жұмысқа шықтым (GPS қосу)</button>
-    </div>
+
+    <button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу</button>
+
     <div id="map"></div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="filterMarkers('all')"><span>🌍</span><label>Барлығы</label></div>
+        <div class="nav-item" onclick="filterMarkers('🛠')"><span>🛠</span><label>Сантехник</label></div>
+        <div class="nav-item" onclick="filterMarkers('⚡')"><span>⚡</span><label>Электрик</label></div>
+        <div class="nav-item" onclick="filterMarkers('🛒')"><span>🛒</span><label>Дүкен</label></div>
+        <div class="nav-item" onclick="filterMarkers('📦')"><span>📦</span><label>Курьер</label></div>
+    </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. Картаны баптау (Алматы орталығы)
-        var map = L.map('map').setView([43.2389, 76.8897], 13);
+        const socket = io("https://sk-joba.onrender.com"); // Render сілтемесін тексеріңіз
+        const map = L.map('map', { zoomControl: false }).setView([43.238, 76.889], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 2. Серверге қосылу (Render сілтемесін кейін осында қоясыз)
-        const socket = io("https://sk-joba.onrender.com"); 
+        let myMarker;
+        const markers = {}; 
+        let currentRole = "🛒"; // Әдепкі рөл
 
-        var myMarker;
+        // Түріне қарай маманды таңдау
+        function filterMarkers(role) {
+            currentRole = role;
+            alert("Сіз таңдаған санат: " + (role === 'all' ? 'Барлығы' : role));
+            // Бұл жерде картадағы маркерлерді жасыру логикасын қосуға болады
+        }
 
-        // 3. Маманның орнын бақылау функциясы
         function startTracking() {
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition((position) => {
-            const { latitude, longitude } = position.coords;
+            const name = prompt("Атыңызды жазыңыз:");
+            const role = prompt("Рөліңізді таңдаңыз (🛠, ⚡, 🛒, 📦):", "🛠");
             
-            // Телефон экранына хабарлама шығару (тест үшін)
-            console.log("Координата табылды: " + latitude); 
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition((position) => {
+                    const { latitude, longitude } = position.coords;
+                    
+                    if (!myMarker) {
+                        myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен: " + name).openPopup();
+                    } else {
+                        myMarker.setLatLng([latitude, longitude]);
+                    }
+                    map.setView([latitude, longitude], 15);
 
-            if (myMarker) {
-                myMarker.setLatLng([latitude, longitude]);
-            } else {
-                myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен осындамын").openPopup();
+                    socket.emit('send_location', { id: name, role: role, lat: latitude, lng: longitude });
+                });
             }
-            map.setView([latitude, longitude]);
+        }
 
-            // Серверге жіберу
-            socket.emit('send_location', {
-                id: "worker_phone", // Әр құрылғыға әртүрлі ID беріңіз
-                lat: latitude,
-                lng: longitude
-            });
-        }, (error) => {
-            // Егер GPS қосылмаса, экранға қатені шығару
-            alert("GPS қатесі: " + error.message);
-        });
-    } else {
-        alert("Бұл браузер GPS-ті қолдамайды");
-    }
-}
-
-        // 4. Басқа мамандар қозғалса, оларды картада көрсету
         socket.on('receive_location', (data) => {
-            console.log("Жаңа координата келді:", data);
-            L.marker([data.lat, data.lng]).addTo(map).bindPopup("Басқа маман").openPopup();
-        });// Пайдаланушыдан атын сұрау (тест үшін)
-const userName = prompt("Атыңызды немесе мамандығыңызды жазыңыз:", "Сантехник");
-
-function startTracking() {
-    navigator.geolocation.watchPosition((position) => {
-        const { latitude, longitude } = position.coords;
-        
-        // Серверге тек координата емес, есімді де жіберу
-        socket.emit('send_location', {
-            id: userName, // Енді ID ретінде жазылған есім барады
-            lat: latitude,
-            lng: longitude
+            if (markers[data.id]) {
+                markers[data.id].setLatLng([data.lat, data.lng]);
+            } else {
+                const icon = L.divIcon({
+                    html: `<div style="font-size: 24px;">${data.role}</div>`,
+                    className: 'custom-div-icon'
+                });
+                markers[data.id] = L.marker([data.lat, data.lng], { icon: icon }).addTo(map)
+                    .bindPopup(`<b>${data.role} ${data.id}</b><br><button onclick="orderService('${data.id}')">Тапсырыс беру</button>`);
+            }
         });
-    });
-}
 
-// Басқаларды картаға суреттеу
-const markers = {}; // Барлық маркерлерді сақтайтын орын
-
-socket.on('receive_location', (data) => {
-    if (markers[data.id]) {
-        markers[data.id].setLatLng([data.lat, data.lng]);
-    } else {
-        // Жаңа адам үшін жаңа маркер және оның есімін жазу
-        markers[data.id] = L.marker([data.lat, data.lng]).addTo(map)
-            .bindPopup("Маман: " + data.id).openPopup();
-    }
-});
-
-var plumberIcon = L.icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png', // Мысал иконка
-    iconSize: [32, 32],
-});
-
-// Маркер жасағанда иконканы қолдану:
-L.marker([lat, lng], {icon: plumberIcon}).addTo(map);
-
-        
+        function orderService(id) {
+            alert(id + " маманға тапсырыс жіберілді! Жауап күтіңіз.");
+        }
     </script>
-
-
-
-    
 </body>
 </html>
