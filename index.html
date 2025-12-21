@@ -30,27 +30,34 @@
 
         // 3. Маманның орнын бақылау функциясы
         function startTracking() {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition((position) => {
-                    const { latitude, longitude } = position.coords;
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition((position) => {
+            const { latitude, longitude } = position.coords;
+            
+            // Телефон экранына хабарлама шығару (тест үшін)
+            console.log("Координата табылды: " + latitude); 
 
-                    // Өз маркерімізді жылжыту
-                    if (myMarker) {
-                        myMarker.setLatLng([latitude, longitude]);
-                    } else {
-                        myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен осындамын").openPopup();
-                    }
-                    map.setView([latitude, longitude]);
-
-                    // Координатаны серверге жіберу
-                    socket.emit('send_location', {
-                        id: "worker_1",
-                        lat: latitude,
-                        lng: longitude
-                    });
-                });
+            if (myMarker) {
+                myMarker.setLatLng([latitude, longitude]);
+            } else {
+                myMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Мен осындамын").openPopup();
             }
-        }
+            map.setView([latitude, longitude]);
+
+            // Серверге жіберу
+            socket.emit('send_location', {
+                id: "worker_phone", // Әр құрылғыға әртүрлі ID беріңіз
+                lat: latitude,
+                lng: longitude
+            });
+        }, (error) => {
+            // Егер GPS қосылмаса, экранға қатені шығару
+            alert("GPS қатесі: " + error.message);
+        });
+    } else {
+        alert("Бұл браузер GPS-ті қолдамайды");
+    }
+}
 
         // 4. Басқа мамандар қозғалса, оларды картада көрсету
         socket.on('receive_location', (data) => {
