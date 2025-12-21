@@ -3,47 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qalpan Geo-Service</title>
+    <title>Smart Service Platform</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; font-family: sans-serif; background: #f4f7f6; }
+        body { margin: 0; font-family: sans-serif; background: #f0f2f5; }
         #map { height: 100vh; width: 100%; }
-        
-        .main-nav {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; display: flex; gap: 15px; width: 90%; max-width: 400px;
-        }
-        .cat-btn {
-            flex: 1; padding: 15px; border: none; border-radius: 15px;
-            background: #2c3e50; color: white; font-weight: bold; font-size: 16px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3); cursor: pointer;
-        }
-        .cat-btn.active { background: #3498db; }
-
-        .sub-menu {
-            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: white; width: 85%; max-width: 350px;
-            border-radius: 15px; display: none; flex-direction: column;
-            max-height: 200px; overflow-y: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
-        }
-        .sub-item {
-            padding: 15px; border-bottom: 1px solid #eee; cursor: pointer;
-            display: flex; justify-content: space-between;
-        }
-        .work-btn {
-            position: fixed; top: 20px; left: 20px; z-index: 1000;
-            background: #27ae60; color: white; border: none; padding: 12px;
-            border-radius: 10px; font-weight: bold;
-        }
+        .main-nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 10px; width: 90%; max-width: 400px; }
+        .cat-btn { flex: 1; padding: 15px; border: none; border-radius: 12px; background: #2c3e50; color: white; font-weight: bold; cursor: pointer; }
+        .sub-menu { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; width: 85%; border-radius: 12px; display: none; flex-direction: column; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+        .sub-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
+        .active-order { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; width: 90%; max-width: 350px; padding: 20px; border-radius: 15px; z-index: 2000; box-shadow: 0 10px 30px rgba(0,0,0,0.3); text-align: center; }
+        .work-btn { position: fixed; top: 20px; left: 20px; z-index: 1000; background: #27ae60; color: white; border: none; padding: 12px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-<button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу</button>
+<button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу / Тіркелу</button>
 <div id="map"></div>
-
 <div id="sub-menu" class="sub-menu"></div>
-
 <div class="main-nav">
     <button class="cat-btn" onclick="loadCategories('service')">🛠 Қызметтер</button>
     <button class="cat-btn" onclick="loadCategories('goods')">🛍 Тауарлар</button>
@@ -57,35 +34,24 @@
     const map = L.map('map', { zoomControl: false }).setView([43.238, 76.889], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let myName = "";
-    const markers = {};
+    let myName = "", myPhone = "", markers = {};
 
-    // 1. Автоматты түрде санаттарды базадан жүктеу
     async function loadCategories(type) {
         const res = await fetch('https://sk-joba.onrender.com/categories');
         const categories = await res.json();
-        
         const menu = document.getElementById('sub-menu');
-        menu.innerHTML = "";
-        menu.style.display = "flex";
-
+        menu.innerHTML = ""; menu.style.display = "flex";
         const filtered = categories.filter(c => c.type === type);
-        
-        if (filtered.length === 0) {
-            menu.innerHTML = "<div class='sub-item'>Қазір ешкім онлайн емес 😴</div>";
-        }
-
         filtered.forEach(cat => {
             const div = document.createElement('div');
             div.className = 'sub-item';
-            div.innerHTML = `<span>${cat.role}</span>`;
-            div.onclick = () => filterMarkers(cat.role);
+            div.innerHTML = `<span>${cat.role} ${cat.role === '🛠' ? 'Сантехник' : cat.role}</span>`;
+            div.onclick = () => { filterMarkers(cat.role); menu.style.display="none"; };
             menu.appendChild(div);
         });
     }
 
     function filterMarkers(role) {
-        document.getElementById('sub-menu').style.display = "none";
         Object.keys(markers).forEach(id => {
             if (markers[id].role === role) map.addLayer(markers[id]);
             else map.removeLayer(markers[id]);
@@ -94,126 +60,69 @@
 
     function startTracking() {
         myName = prompt("Атыңыз:");
-        const role = prompt("Рөліңізді (эмодзи) қойыңыз (мысалы: 🛠, ⚡, 🛒, 💊):");
-        if (!myName || !role) return;
+        myPhone = prompt("Телефон нөміріңіз:");
+        const role = prompt("Мамандық/Дүкен эмодзиін таңдаңыз (🛠, ⚡, 🛒, 💊, 📦):");
+        if (!myName || !myPhone) return alert("Деректерді толтырыңыз!");
 
-        socket.emit('register', myName);
+        socket.emit('register', { id: myName, phone: myPhone });
         navigator.geolocation.watchPosition(pos => {
             const { latitude, longitude } = pos.coords;
-            socket.emit('send_location', { id: myName, role: role, lat: latitude, lng: longitude });
+            socket.emit('send_location', { id: myName, phone: myPhone, role: role, lat: latitude, lng: longitude });
             map.setView([latitude, longitude], 15);
         });
     }
 
     socket.on('receive_location', (data) => {
-        if (markers[data.id]) {
-            markers[data.id].setLatLng([data.lat, data.lng]);
-        } else {
+        if (markers[data.id]) { markers[data.id].setLatLng([data.lat, data.lng]); }
+        else {
             const icon = L.divIcon({ html: `<div style="font-size:24px">${data.role}</div>`, className: 'icon' });
             const m = L.marker([data.lat, data.lng], { icon: icon }).addTo(map)
-                       .bindPopup(`<b>${data.id}</b><br><button onclick="order('${data.id}')">Тапсырыс</button>`);
-            m.role = data.role;
-            markers[data.id] = m;
+                       .bindPopup(`<b>${data.id}</b><br><button onclick="order('${data.id}')">Тапсырыс беру</button>`);
+            m.role = data.role; markers[data.id] = m;
         }
     });
 
     function order(id) {
-        socket.emit('order_request', { to: id, from: myName || "Қонақ" });
-        alert("Сұраныс жіберілді!");
+        if (!myName) return alert("Алдымен тіркеліңіз!");
+        socket.emit('order_request', { to: id, from: myName, fromPhone: myPhone });
+        alert("Сұраныс жіберілді...");
     }
 
     socket.on('order_received', data => {
-        if (confirm(`Жаңа тапсырыс: ${data.from}. Қабылдайсыз ба?`)) {
-            socket.emit('order_response', { toClient: data.from, from: myName, status: 'accepted' });
+        new Audio('https://www.soundjay.com/buttons/beep-01a.mp3').play().catch(()=>{});
+        if (confirm(`ЖАҢА ТАПСЫРЫС!\nКімнен: ${data.from}\nТел: ${data.fromPhone}\nҚабылдайсыз ба?`)) {
+            socket.emit('order_response', { toClient: data.from, from: myName, fromPhone: myPhone, status: 'accepted' });
+            showPanel(data.from, data.fromPhone);
         }
     });
 
     socket.on('order_final_status', data => {
-        alert(data.status === 'accepted' ? `✅ ${data.from} қабылдады!` : `❌ Бас тартты`);
+        if (data.status === 'accepted') {
+            alert(`✅ ${data.from} қабылдады! Тел: ${data.fromPhone}`);
+            showPanel(data.from, data.fromPhone);
+        } else { alert("❌ Бас тартылды"); }
     });
 
-
-// 1. Тіркелу кезінде телефон нөмірін сұрау
-function startTracking() {
-    myName = prompt("Атыңызды жазыңыз:");
-    myPhone = prompt("Телефон нөміріңізді жазыңыз (мысалы, +7...):");
-    const role = prompt("Рөліңізді таңдаңыз (🛠, ⚡, 🛒, 📦):", "🛠");
-    
-    if (!myName || !myPhone) return alert("Атыңыз бен нөміріңізді жазу міндетті!");
-
-    socket.emit('register', { id: myName, phone: myPhone });
-
-    navigator.geolocation.watchPosition((position) => {
-        const { latitude, longitude } = position.coords;
-        socket.emit('send_location', { 
-            id: myName, 
-            phone: myPhone, 
-            role: role, 
-            lat: latitude, 
-            lng: longitude 
-        });
-    });
-}
-
-// 2. Клиент тапсырыс бергенде өз нөмірін қоса жібереді
-function orderService(providerId) {
-    if (!myName || !myPhone) {
-        alert("Алдымен 'Жұмысқа шығу' немесе 'Тіркелу' арқылы деректеріңізді енгізіңіз!");
-        return;
+    function showPanel(name, phone) {
+        const panel = document.createElement('div');
+        panel.className = 'active-order';
+        panel.id = 'order-panel';
+        panel.innerHTML = `
+            <h3>Белсенді байланыс</h3>
+            <p><b>${name}</b></p>
+            <p><a href="tel:${phone}" style="font-size:20px; color:#27ae60; text-decoration:none;">📞 Қоңырау шалу</a></p>
+            <hr>
+            <button onclick="finish('${name}')" style="background:#e67e22; color:white; border:none; padding:10px; border-radius:8px;">Жұмыс аяқталды</button>
+        `;
+        document.body.appendChild(panel);
     }
-    socket.emit('order_request', { 
-        to: providerId, 
-        from: myName, 
-        fromPhone: myPhone 
-    });
-    alert("Тапсырыс жіберілді. Маман жауабын күтіңіз...");
-}
 
-// 3. Маман тапсырысты қабылдағанда
-socket.on('order_received', (data) => {
-    if (confirm(`ЖАҢА ТАПСЫРЫС!\nКімнен: ${data.from}\nТелефон: ${data.fromPhone}\nҚабылдайсыз ба?`)) {
-        socket.emit('order_response', { 
-            toClient: data.from, 
-            from: myName, 
-            fromPhone: myPhone, 
-            status: 'accepted' 
-        });
-        showActiveOrder(data.from, data.fromPhone);
+    function finish(providerName) {
+        const stars = prompt("Жұмысты 1-ден 5-ке дейін бағалаңыз (жұлдызша):", "5");
+        if (stars) socket.emit('submit_rating', { to: providerName, stars: stars });
+        document.getElementById('order-panel').remove();
+        alert("Тапсырыс аяқталды. Рақмет!");
     }
-});
-
-// 4. Клиентке маманның нөмірін көрсету және аяқтау батырмасы
-socket.on('order_final_status', (data) => {
-    if (data.status === 'accepted') {
-        alert(`✅ ${data.from} қабылдады! \nБайланыс телефоны: ${data.fromPhone}`);
-        showActiveOrder(data.from, data.fromPhone);
-    }
-});
-
-// Тапсырыс барысын бақылау терезесі
-function showActiveOrder(name, phone) {
-    const statusDiv = document.createElement('div');
-    statusDiv.id = "active-order-panel";
-    statusDiv.style = "position:fixed; top:80px; left:50%; transform:translateX(-50%); background:white; padding:20px; border-radius:15px; z-index:2000; box-shadow:0 5px 15px rgba(0,0,0,0.3); text-align:center; width:80%;";
-    statusDiv.innerHTML = `
-        <h3>Белсенді тапсырыс</h3>
-        <p>Аты: <b>${name}</b></p>
-        <p>Телефон: <a href="tel:${phone}">${phone}</a></p>
-        <button onclick="finishOrder()" style="background: #e67e22; color:white; border:none; padding:10px; border-radius:5px;">Тапсырыс аяқталды</button>
-    `;
-    document.body.appendChild(statusDiv);
-}
-
-function finishOrder() {
-    if(confirm("Тапсырыс толық орындалды ма?")) {
-        document.getElementById('active-order-panel').remove();
-        alert("Тапсырыс аяқталды! Рақмет.");
-        // Бұл жерде базаға 'completed' статусын жіберуге болады
-    }
-}
-
-
-    
 </script>
 </body>
 </html>
