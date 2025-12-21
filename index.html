@@ -63,7 +63,48 @@
         socket.on('receive_location', (data) => {
             console.log("Жаңа координата келді:", data);
             L.marker([data.lat, data.lng]).addTo(map).bindPopup("Басқа маман").openPopup();
+        });// Пайдаланушыдан атын сұрау (тест үшін)
+const userName = prompt("Атыңызды немесе мамандығыңызды жазыңыз:", "Сантехник");
+
+function startTracking() {
+    navigator.geolocation.watchPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Серверге тек координата емес, есімді де жіберу
+        socket.emit('send_location', {
+            id: userName, // Енді ID ретінде жазылған есім барады
+            lat: latitude,
+            lng: longitude
         });
+    });
+}
+
+// Басқаларды картаға суреттеу
+const markers = {}; // Барлық маркерлерді сақтайтын орын
+
+socket.on('receive_location', (data) => {
+    if (markers[data.id]) {
+        markers[data.id].setLatLng([data.lat, data.lng]);
+    } else {
+        // Жаңа адам үшін жаңа маркер және оның есімін жазу
+        markers[data.id] = L.marker([data.lat, data.lng]).addTo(map)
+            .bindPopup("Маман: " + data.id).openPopup();
+    }
+});
+
+var plumberIcon = L.icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png', // Мысал иконка
+    iconSize: [32, 32],
+});
+
+// Маркер жасағанда иконканы қолдану:
+L.marker([lat, lng], {icon: plumberIcon}).addTo(map);
+
+        
     </script>
+
+
+
+    
 </body>
 </html>
