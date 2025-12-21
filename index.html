@@ -18,12 +18,9 @@
 
 <div class="form-container">
     <form id="userForm">
-        <input type="text" id="name" placeholder="Аты-жөніңіз" minlength="2" required>
-        
-        <input type="tel" id="phone" placeholder="87071112233" pattern="[0-9]{11}" required title="11 саннан тұратын нөмір жазыңыз">
-        
-        <input type="text" id="job" placeholder="Мамандығыңыз (мысалы: Жүргізуші)" minlength="3" required>
-        
+        <input type="text" id="name" placeholder="Аты-жөніңіз" minlength="2" required>        
+        <input type="tel" id="phone" name="phone" value="+7" pattern="\+7[0-9]{10}" placeholder="+77071112233" required title="Телефон нөмірі +7-ден басталып, жалпы 12 символ болуы керек (мысалы: +77071112233)">        
+        <input type="text" id="job" placeholder="Мамандығыңыз (мысалы: Жүргізуші)" minlength="3" required>        
         <button type="submit">Жұмысқа шығу</button>
     </form>
 </div>
