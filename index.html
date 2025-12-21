@@ -3,98 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qalpan Map - Fixed</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Жұмыс Картасы</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        body { margin: 0; font-family: sans-serif; }
-        #map { height: 100vh; width: 100%; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 10px; background: white; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .admin-btn { position: fixed; top: 10px; right: 10px; z-index: 1000; opacity: 0.1; border: none; background: none; cursor: pointer; }
-        .work-btn { position: fixed; top: 20px; left: 20px; z-index: 1000; background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        #map { flex-grow: 1; width: 100%; }
+        .form-container { padding: 15px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; }
+        input, button { margin: 5px 0; padding: 12px; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background: #218838; }
     </style>
 </head>
 <body>
 
-    <button class="admin-btn" onclick="openAdmin()">Admin</button>
-    <button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу</button>
+<div class="form-container">
+    <form id="userForm">
+        <input type="text" id="name" placeholder="Аты-жөніңіз" minlength="2" required>
+        
+        <input type="tel" id="phone" placeholder="87071112233" pattern="[0-9]{11}" required title="11 саннан тұратын нөмір жазыңыз">
+        
+        <input type="text" id="job" placeholder="Мамандығыңыз (мысалы: Жүргізуші)" minlength="3" required>
+        
+        <button type="submit">Жұмысқа шығу</button>
+    </form>
+</div>
 
-    <div id="map"></div>
+<div id="map"></div>
 
-    <div class="nav">
-        <button onclick="filterMarkers('🛠')">🛠 Сервис</button>
-        <button onclick="filterMarkers('🛒')">🛒 Тауар</button>
-        <button onclick="filterMarkers('all')">🌍 Барлығы</button>
-    </div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([43.2389, 76.8897], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    document.getElementById('userForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('name').value;
+        const phone = document.getElementById('phone').value;
+        const job = document.getElementById('job').value;
 
-    <script>
-        const socket = io("https://sk-joba.onrender.com");
-        const map = L.map('map').setView([43.238, 76.889], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        navigator.geolocation.getCurrentPosition(position => {
+            const data = {
+                name, phone, job,
+                lat: position.coords.latitude,
+                lon: position.coords.longitude
+            };
 
-        let myName, myPhone, markers = {};
-
-        function startTracking() {
-            myName = prompt("Атыңыз:");
-            myPhone = prompt("Телефон нөміріңіз:");
-            let role = prompt("Рөліңіз (🛠 немесе 🛒):", "🛠");
-            
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(pos => {
-                    const data = { id: myName, phone: myPhone, role: role, lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    socket.emit('send_location', data);
-                }, err => alert("Геолокацияға рұқсат беріңіз!"), { enableHighAccuracy: true });
-            }
-        }
-
-        socket.on('receive_location', data => {
-            console.log("Маркер келді:", data);
-            if (markers[data.id]) {
-                markers[data.id].setLatLng([data.lat, data.lng]);
-            } else {
-                let m = L.marker([data.lat, data.lng]).addTo(map)
-                    .bindPopup(`<b>${data.id}</b><br>Тел: ${data.phone}<br><button onclick="order('${data.id}')">Тапсырыс беру</button>`);
-                m.role = data.role;
-                markers[data.id] = m;
-            }
-        });
-
-        function filterMarkers(role) {
-            Object.values(markers).forEach(m => {
-                if (role === 'all' || m.role === role) map.addLayer(m);
-                else map.removeLayer(m);
-            });
-        }
-
-        function order(id) {
-            if(!myName) return alert("Алдымен 'Жұмысқа шығу' арқылы тіркеліңіз!");
-            socket.emit('order_request', { to: id, from: myName, fromPhone: myPhone });
-            alert("Сұраныс жіберілді...");
-        }
-
-        socket.on('order_received', data => {
-            if (confirm(`Тапсырыс келді! Кімнен: ${data.from}. Қабылдайсыз ба?`)) {
-                socket.emit('order_response', { toClient: data.from, from: myName, fromPhone: myPhone, status: 'accepted' });
-            }
-        });
-
-        socket.on('order_final_status', data => {
-            alert(data.status === 'accepted' ? `✅ Маман қабылдады! Тел: ${data.fromPhone}` : "❌ Бас тартылды");
-        });
-
-        socket.on('error_message', msg => alert("⚠️ " + msg));
-
-        function openAdmin() {
-            let pass = prompt("Құпия сөз:");
-            if (pass === "2025") {
-                let user = prompt("Кімнің балансын толтырамыз?");
-                let amount = prompt("Қанша сомма?");
-                socket.emit('admin_add_balance', { id: user, amount: parseInt(amount) });
-                alert("Пәрмен жіберілді");
-            }
-        }
-    </script>
+            // Өз Render сілтемеңізді тексеріңіз
+            fetch('https://sk-joba.onrender.com/save-location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Деректер қате");
+                return res.json();
+            })
+            .then(() => {
+                alert("Сәтті сақталды!");
+                location.reload();
+            })
+            .catch(err => alert("Қате: " + err.message));
+        }, () => alert("Геолокацияға рұқсат беріңіз!"));
+    });
+</script>
 </body>
 </html>
