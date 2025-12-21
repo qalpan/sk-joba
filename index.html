@@ -3,99 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Service Map</title>
+    <title>Qalpan Geo-Service</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>
-    /* Жаңа стильдер */
-    .main-nav {
-        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-        z-index: 1000; display: flex; gap: 20px;
-    }
-    .category-btn {
-        background: #3498db; color: white; border: none; padding: 10px 20px;
-        border-radius: 10px; cursor: pointer; font-weight: bold;
-    }
-    .sub-menu {
-        position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%);
-        background: white; border-radius: 10px; display: none; /* Әдепкіде жабық */
-        flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1001;
-    }
-    .sub-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #eee; }
-    .sub-item:hover { background: #f1f1f1; }
-</style>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #f4f7f6; }
+        #map { height: 100vh; width: 100%; }
+        
+        .main-nav {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; display: flex; gap: 15px; width: 90%; max-width: 400px;
+        }
+        .cat-btn {
+            flex: 1; padding: 15px; border: none; border-radius: 15px;
+            background: #2c3e50; color: white; font-weight: bold; font-size: 16px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); cursor: pointer;
+        }
+        .cat-btn.active { background: #3498db; }
 
+        .sub-menu {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: white; width: 85%; max-width: 350px;
+            border-radius: 15px; display: none; flex-direction: column;
+            max-height: 200px; overflow-y: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+        }
+        .sub-item {
+            padding: 15px; border-bottom: 1px solid #eee; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .work-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 1000;
+            background: #27ae60; color: white; border: none; padding: 12px;
+            border-radius: 10px; font-weight: bold;
+        }
+    </style>
+</head>
 <body>
-    <button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу</button>
 
-    <div id="map"></div>
+<button class="work-btn" onclick="startTracking()">🟢 Жұмысқа шығу</button>
+<div id="map"></div>
 
-    <div class="main-nav">
-        <button class="category-btn" onclick="toggleMenu('services')">🛠 Қызметтер</button>
-        <button class="category-btn" onclick="toggleMenu('goods')">🛍 Тауарлар</button>
-    </div>
+<div id="sub-menu" class="sub-menu"></div>
 
-    <div id="services-menu" class="sub-menu">
-        <div class="sub-item" onclick="filterMarkers('🛠')">🛠 Сантехник</div>
-        <div class="sub-item" onclick="filterMarkers('⚡')">⚡ Электрик</div>
-        <div class="sub-item" onclick="filterMarkers('🧹')">🧹 Тазалық</div>
-    </div>
+<div class="main-nav">
+    <button class="cat-btn" onclick="loadCategories('service')">🛠 Қызметтер</button>
+    <button class="cat-btn" onclick="loadCategories('goods')">🛍 Тауарлар</button>
+</div>
 
-    <div id="goods-menu" class="sub-menu">
-        <div class="sub-item" onclick="filterMarkers('🛒')">🛒 Азық-түлік</div>
-        <div class="sub-item" onclick="filterMarkers('💊')">💊 Дәріхана</div>
-        <div class="sub-item" onclick="filterMarkers('📦')">📦 Жеткізу</div>
-    </div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    // Мәзірді ашу/жабу
-    function toggleMenu(type) {
-        const sMenu = document.getElementById('services-menu');
-        const gMenu = document.getElementById('goods-menu');
-        if (type === 'services') {
-            sMenu.style.display = sMenu.style.display === 'flex' ? 'none' : 'flex';
-            gMenu.style.display = 'none';
-        } else {
-            gMenu.style.display = gMenu.style.display === 'flex' ? 'none' : 'flex';
-            sMenu.style.display = 'none';
+    const socket = io("https://sk-joba.onrender.com");
+    const map = L.map('map', { zoomControl: false }).setView([43.238, 76.889], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let myName = "";
+    const markers = {};
+
+    // 1. Автоматты түрде санаттарды базадан жүктеу
+    async function loadCategories(type) {
+        const res = await fetch('https://sk-joba.onrender.com/categories');
+        const categories = await res.json();
+        
+        const menu = document.getElementById('sub-menu');
+        menu.innerHTML = "";
+        menu.style.display = "flex";
+
+        const filtered = categories.filter(c => c.type === type);
+        
+        if (filtered.length === 0) {
+            menu.innerHTML = "<div class='sub-item'>Қазір ешкім онлайн емес 😴</div>";
         }
-    }
 
-    // Тек ОНЛАЙН мамандарды сүзгілеу
-    function filterMarkers(role) {
-        document.getElementById('services-menu').style.display = 'none';
-        document.getElementById('goods-menu').style.display = 'none';
-
-        Object.keys(markers).forEach(id => {
-            const marker = markers[id];
-            // 1. Рөлі сәйкес келе ме?
-            // 2. Соңғы рет қашан ақпарат жіберді? (Мысалы, соңғы 5 минутта)
-            const isOnline = (Date.now() - marker.lastSeen) < 300000; // 5 минут
-
-            if (marker.role === role && isOnline) {
-                map.addLayer(marker);
-            } else {
-                map.removeLayer(marker);
-            }
+        filtered.forEach(cat => {
+            const div = document.createElement('div');
+            div.className = 'sub-item';
+            div.innerHTML = `<span>${cat.role}</span>`;
+            div.onclick = () => filterMarkers(cat.role);
+            menu.appendChild(div);
         });
     }
 
-    // Орын алғанда уақытты сақтау
+    function filterMarkers(role) {
+        document.getElementById('sub-menu').style.display = "none";
+        Object.keys(markers).forEach(id => {
+            if (markers[id].role === role) map.addLayer(markers[id]);
+            else map.removeLayer(markers[id]);
+        });
+    }
+
+    function startTracking() {
+        myName = prompt("Атыңыз:");
+        const role = prompt("Рөліңізді (эмодзи) қойыңыз (мысалы: 🛠, ⚡, 🛒, 💊):");
+        if (!myName || !role) return;
+
+        socket.emit('register', myName);
+        navigator.geolocation.watchPosition(pos => {
+            const { latitude, longitude } = pos.coords;
+            socket.emit('send_location', { id: myName, role: role, lat: latitude, lng: longitude });
+            map.setView([latitude, longitude], 15);
+        });
+    }
+
     socket.on('receive_location', (data) => {
         if (markers[data.id]) {
             markers[data.id].setLatLng([data.lat, data.lng]);
-            markers[data.id].lastSeen = Date.now(); // Уақытты жаңарту
         } else {
-            const icon = L.divIcon({
-                html: `<div style="font-size: 24px;">${data.role}</div>`,
-                className: 'custom-div-icon'
-            });
-            const newMarker = L.marker([data.lat, data.lng], { icon: icon }).addTo(map)
-                .bindPopup(`<b>${data.role} ${data.id}</b><br><button onclick="orderService('${data.id}')">Тапсырыс</button>`);
-            
-            newMarker.role = data.role;
-            newMarker.lastSeen = Date.now(); 
-            markers[data.id] = newMarker;
+            const icon = L.divIcon({ html: `<div style="font-size:24px">${data.role}</div>`, className: 'icon' });
+            const m = L.marker([data.lat, data.lng], { icon: icon }).addTo(map)
+                       .bindPopup(`<b>${data.id}</b><br><button onclick="order('${data.id}')">Тапсырыс</button>`);
+            m.role = data.role;
+            markers[data.id] = m;
         }
+    });
+
+    function order(id) {
+        socket.emit('order_request', { to: id, from: myName || "Қонақ" });
+        alert("Сұраныс жіберілді!");
+    }
+
+    socket.on('order_received', data => {
+        if (confirm(`Жаңа тапсырыс: ${data.from}. Қабылдайсыз ба?`)) {
+            socket.emit('order_response', { toClient: data.from, from: myName, status: 'accepted' });
+        }
+    });
+
+    socket.on('order_final_status', data => {
+        alert(data.status === 'accepted' ? `✅ ${data.from} қабылдады!` : `❌ Бас тартты`);
     });
 </script>
 </body>
