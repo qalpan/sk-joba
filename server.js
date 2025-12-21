@@ -57,3 +57,22 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Сервер қосылды: ${PORT}`));
+
+
+app.get('/find-nearest', async (req, res) => {
+    const { lat, lng, role } = req.query;
+    try {
+        const result = await pool.query(`
+            SELECT user_id, lat, lng, 
+            (6371 * acos(cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat)))) AS distance
+            FROM locations
+            WHERE time > NOW() - INTERVAL '10 minutes' -- Тек соңғы 10 минутта онлайн болғандар
+            ORDER BY distance ASC
+            LIMIT 1
+        `, [lat, lng]);
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
