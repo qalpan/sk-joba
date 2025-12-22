@@ -22,6 +22,7 @@ async function initDB() {
 }
 initDB();
 
+// САҚТАУ API-ЛЕРІ
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -49,12 +50,30 @@ app.get('/get-all', async (req, res) => {
     res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
 });
 
+// ӨШІРУ API (ТҮЗЕЛГЕН НҰСҚА)
 app.post('/delete-item', async (req, res) => {
     const { id, type, token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-    const query = token === 'ADMIN' ? `DELETE FROM ${table} WHERE id = $1` : `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
-    await pool.query(query, token === 'ADMIN' ? [id] : [id, token]);
-    res.json({ success: true });
+    
+    try {
+        // id-ді санға айналдыру маңызды
+        const itemId = parseInt(id);
+        let result;
+
+        if (token === 'ADMIN') {
+            result = await pool.query(`DELETE FROM ${table} WHERE id = $1`, [itemId]);
+        } else {
+            result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [itemId, token]);
+        }
+
+        if (result.rowCount > 0) {
+            res.json({ success: true, message: "Өшірілді" });
+        } else {
+            res.status(403).json({ success: false, message: "Өшіруге рұқсат жоқ немесе табылмады" });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 app.get('/admin/pending', async (req, res) => {
