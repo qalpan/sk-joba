@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 45vh; width: 100%; border-bottom: 2px solid #007bff; }
+        /* Картаның биіктігі мен түсі нақты болуы тиіс */
+        #map { height: 45vh; width: 100%; border-bottom: 2px solid #007bff; background: #e0e0e0; }
         .search-box { padding: 10px; background: white; text-align: center; }
         .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; outline: none; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
@@ -73,16 +74,23 @@
 <script>
     const API = "https://sk-joba.onrender.com";
     const KASPI_PHONE = "+77017398309"; 
-    const ADMIN_EMAIL = "sk-joba@outlook.com"; // Поштаңызды жазыңыз
-    const SKYPE_ID = "live:ckt-proekt"; // Скайп логиніңіз
+    const ADMIN_EMAIL = "sk-joba@outlook.com"; 
+    const SKYPE_ID = "live:ckt-proekt"; 
 
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
+    // КАРТАНЫ БАПТАУ
     const map = L.map('map').setView([43.2389, 76.8897], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
+
+    // Карта өлшемін жаңарту (Бұл маңызды!)
+    setTimeout(() => { map.invalidateSize(); }, 500);
 
     let allData = { workers: [], goods: [], orders: [] };
 
@@ -105,16 +113,14 @@
                 } else {
                     const amount = d.durationHours === "1" ? "49" : "490";
                     const subject = encodeURIComponent(`SK-Joba төлемі: ${d.phone}`);
-                    const body = encodeURIComponent(`Сәлеметсіз бе! SK-Joba-ға жарнама бердім.\nТөлем сомасы: ${amount}₸.\nТелефон: ${d.phone}\n[Осы хатқа төлем чегін тіркеңіз]`);
+                    const body = encodeURIComponent(`Сәлеметсіз бе! SK-Joba-ға жарнама бердім.\nТөлем сомасы: ${amount}₸.\nТелефон: ${d.phone}`);
                     
-                    if(confirm(`Өтінім қабылданды! Жариялау ақысы: ${amount}₸.\n\nҚазір Kaspi-ге өтіп төлем жасайсыз ба?`)) {
+                    if(confirm(`Өтінім қабылданды! Ақысы: ${amount}₸.\n\nKaspi-ге өтіп төлем жасайсыз ба?`)) {
                         window.open(`https://kaspi.kz/pay/Transfer?phone=${KASPI_PHONE.replace('+', '')}`, '_blank');
-                        
                         setTimeout(() => {
                             if(confirm("Төлем чегін Email арқылы жібересіз бе?")) {
                                 window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
                             } else {
-                                // Альтернативті Skype сілтемесі
                                 window.location.href = `skype:${SKYPE_ID}?chat`;
                             }
                         }, 4000);
@@ -129,7 +135,7 @@
         fetch(API+'/get-all').then(r => r.json()).then(data => {
             allData = data;
             filterMarkers();
-        });
+        }).catch(err => console.error("Дерек алу қатесі:", err));
     }
 
     function filterMarkers() {
@@ -141,6 +147,43 @@
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
-        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
-        const delBtn
+        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;margin-top:5px;width:100%;cursor:pointer;padding:5px;">Өшіру ❌</button>` : "";
+        m.bindPopup(txt + delBtn);
+        m.bindTooltip(mini.substring(0,15), {permanent: false, direction: 'top'});
+        markersGroup.addLayer(m);
+    }
+
+    function delItem(id, type, admin=false) {
+        if(!confirm("Өшіруді растайсыз ба?")) return;
+        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
+        .then(() => admin ? loadAdmin() : loadMarkers());
+    }
+
+    window.onhashchange = () => {
+        if(location.hash === "#admin777") {
+            const p = prompt("Құпия сөз:");
+            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
+        } else { document.getElementById('admin-modal').style.display='none'; }
+    };
+
+    function loadAdmin() {
+        fetch(API+'/admin/pending').then(r => r.json()).then(list => {
+            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Инфо</th><th>Ақысы</th><th>Әрекет</th></tr>`;
+            list.forEach(i => {
+                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅</button><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`;
+            });
+            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Жаңа өтінімдер жоқ.";
+        });
+    }
+
+    function act(id, type) {
+        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadAdmin());
+    }
+
+    setInterval(loadMarkers, 30000);
+    loadMarkers();
+</script>
+</body>
+</html>
