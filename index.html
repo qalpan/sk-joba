@@ -3,45 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Нақты Бақылау</title>
+    <title>SK-Joba | Нақты Карта</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
 
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
         
-        /* КАРТА КӨРІНУІ ҮШІН БИІКТІК МІНДЕТТІ */
+        /* КАРТА КӨРІНУІ ҮШІН ОСЫ БӨЛІК ӨТЕ МАҢЫЗДЫ */
         #map { 
             height: 60vh; 
             width: 100%; 
             border-bottom: 3px solid #007bff; 
-            background: #e0e0e0; /* Карта жүктелгенше сұры түс тұрады */
+            z-index: 1;
         }
 
-        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
         
-        /* ВАЛИДАЦИЯ ҚАТЕСІ */
-        .invalid { border: 2px solid red !important; background: #fff8f8; }
+        /* ВАЛИДАЦИЯ ҚАТЕСІ - ҚЫЗЫЛ ТҮС */
+        .invalid { border: 2px solid red !important; background: #fff1f1; }
         
-        /* БАСТЫ АҚПАРАТ (ӘРҚАШАН КӨРІНІП ТҰРАТЫН ЖАЗУ) */
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #0056b3; }
+
+        /* ТҰРАҚТЫ МАРКЕР ЖАЗУЫ (Mini-info) */
         .leaflet-tooltip { 
             background: white !important; 
             border: 2px solid #007bff !important; 
             color: black !important; 
             font-weight: bold !important; 
-            padding: 2px 6px !important;
+            padding: 3px 8px !important;
             font-size: 12px !important;
-            border-radius: 4px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #f8f9fa; }
     </style>
 </head>
 <body>
@@ -50,26 +54,26 @@
 
 <div class="container">
     <div class="card">
-        <h4>👷 Қызмет</h4>
+        <h4>👷 Қызмет тіркеу</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
+        <input id="w_job" placeholder="Мамандық (Мәтін)">
         <input id="w_phone" placeholder="Телефон">
         <select id="w_dur"><option value="1">1 сағат</option><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
     </div>
 
     <div class="card">
-        <h4>📦 Тауар</h4>
+        <h4>📦 Тауар қосу</h4>
         <input id="g_name" placeholder="Атыңыз">
         <input id="g_prod" placeholder="Тауар аты">
         <input id="g_price" placeholder="Бағасы (ТЕК САН)">
         <input id="g_phone" placeholder="Телефон">
         <select id="g_dur"><option value="24">1 тәулік</option></select>
-        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Қосу</button>
+        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Жариялау</button>
     </div>
 
     <div class="card">
-        <h4>📋 Тапсырыс</h4>
+        <h4>📋 Тапсырыс (Керек)</h4>
         <input id="c_name" placeholder="Атыңыз">
         <textarea id="c_desc" placeholder="Не қажет?"></textarea>
         <input id="c_phone" placeholder="Телефон">
@@ -78,10 +82,105 @@
 </div>
 
 <div id="admin-modal">
-    <button onclick="window.location.hash=''" style="float:right;">❌ Жабу</button>
-    <h2>Админ басқару</h2>
+    <button onclick="window.location.hash=''" style="float:right; width: auto; background: #6c757d;">❌ ЖАБУ</button>
+    <h2>АДМИН ПАНЕЛЬ</h2>
     <div id="admin-list"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://unpkg
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+<script>
+    const API = "https://sk-joba.onrender.com";
+    const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
+    localStorage.setItem('token', myToken);
+
+    // КАРТАНЫ ҚҰРУ
+    const map = L.map('map').setView([43.2389, 76.8897], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true });
+    map.addLayer(markersGroup);
+
+    // ҚАТАҢ ВАЛИДАЦИЯ
+    function validate(ids, numIds = []) {
+        let ok = true;
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            const val = el.value.trim();
+            // Сан болу керек жерде мәтін болса немесе бос болса қате
+            let err = !val || (numIds.includes(id) && isNaN(val.replace(/\s/g, '')));
+            if(err) { el.classList.add('invalid'); ok = false; }
+            else { el.classList.remove('invalid'); }
+        });
+        return ok;
+    }
+
+    function saveItem(type) {
+        let f=[], nf=[], d={}, path='';
+        if(type==='worker'){f=['w_name','w_job','w_phone']; path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')};}
+        if(type==='good'){f=['g_name','g_prod','g_price','g_phone']; nf=['g_price']; path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')};}
+        if(type==='order'){f=['c_name','c_desc','c_phone']; path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')};}
+
+        if(!validate(f, nf)) return alert("Қате! Барлық жерді толтырыңыз (Бағаға тек сан жазыңыз).");
+
+        navigator.geolocation.getCurrentPosition(p => {
+            d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
+            fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
+            .then(() => location.reload());
+        }, () => alert("Геолокацияны қосыңыз!"));
+    }
+
+    function loadMarkers() {
+        fetch(API+'/get-all').then(r => r.json()).then(data => {
+            markersGroup.clearLayers();
+            data.workers.forEach(w => addM(w.lat, w.lon, `👷 ${w.job}<br>${w.name}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
+            data.goods.forEach(g => addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.price+"₸", g.id, 'good', g.device_token, '#ffc107'));
+            data.orders.forEach(o => addM(o.lat, o.lon, `📋 ${o.description}`, "КЕРЕК", o.id, 'order', o.device_token, '#28a745'));
+        });
+    }
+
+    function addM(lat, lon, txt, mini, id, type, token, color) {
+        const icon = L.divIcon({html: `<div style="background:${color};width:20px;height:20px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`, className:''});
+        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;padding:5px;border:none;width:100%;margin-top:8px;cursor:pointer;border-radius:4px;">ӨШІРУ 🗑️</button>` : "";
+        
+        const m = L.marker([lat, lon], {icon});
+        m.bindPopup(txt + del);
+        // ТҰРАҚТЫ МИНИ-ИНФО
+        m.bindTooltip(mini, {permanent: true, direction: 'top', offset: [0, -10]});
+        markersGroup.addLayer(m);
+    }
+
+    function delItem(id, type, admin=false) {
+        if(!confirm("Жоюды растайсыз ба?")) return;
+        fetch(API+'/delete-item', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})
+        }).then(() => admin ? loadAdmin() : location.reload());
+    }
+
+    function v(id){ return document.getElementById(id).value; }
+
+    window.onhashchange = () => {
+        if(location.hash === "#admin777") {
+            const p = prompt("Password:");
+            if(p === "admin777") { 
+                document.getElementById('admin-modal').style.display='block'; 
+                loadAdmin(); 
+            } else { location.hash = ""; }
+        } else { document.getElementById('admin-modal').style.display='none'; }
+    };
+
+    function loadAdmin() {
+        fetch(API+'/admin/pending').then(r => r.json()).then(list => {
+            let h = `<table><tr><th>Түрі</th><th>Инфо</th><th>Әрекет</th></tr>`;
+            list.forEach(i => h += `<tr><td>${i.type}</td><td>${i.info}</td><td><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red;color:white;padding:5px;">🗑️ Өшіру</button></td></tr>`);
+            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Тізім бос";
+        });
+    }
+
+    loadMarkers();
+</script>
+</body>
+</html>
