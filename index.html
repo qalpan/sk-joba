@@ -3,31 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Нақты Уақыт</title>
+    <title>SK-Joba | Search & Live</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 55vh; width: 100%; border-bottom: 3px solid #007bff; }
+        /* ІЗДЕУ ЖОЛАҒЫ */
+        .search-box {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; width: 80%; max-width: 400px;
+        }
+        .search-box input {
+            width: 100%; padding: 12px; border-radius: 25px; border: 2px solid #007bff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); outline: none;
+        }
+        #map { height: 50vh; width: 100%; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
         
-        /* MINI АҚПАРАТ СТИЛІ (ҚЫСҚА) */
+        /* MINI АҚПАРАТ (ҚЫСҚА) */
         .leaflet-tooltip { 
-            background: white !important; 
-            border: 2px solid #007bff !important; 
-            font-weight: bold !important; 
-            padding: 2px 4px !important; 
-            font-size: 11px !important; 
-            white-space: nowrap;
+            background: white !important; border: 2px solid #007bff !important; 
+            font-weight: bold !important; padding: 2px 4px !important; font-size: 11px !important; 
         }
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
     </style>
 </head>
 <body>
+
+<div class="search-box">
+    <input type="text" id="searchInput" placeholder="Іздеу (мысалы: Кран, Мастер...)" oninput="filterMarkers()">
+</div>
 
 <div id="map"></div>
 
@@ -36,7 +44,7 @@
         <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық">
-        <input id="w_phone" placeholder="Телефон (8707...)">
+        <input id="w_phone" placeholder="Телефон (12 сан)">
         <select id="w_dur"><option value="1">1 сағат</option><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
     </div>
@@ -59,11 +67,6 @@
     </div>
 </div>
 
-<div id="admin-modal">
-    <button onclick="window.location.hash=''" style="float:right;">❌ Жабу</button>
-    <div id="admin-list"></div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 <script>
@@ -76,54 +79,69 @@
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
+    let allData = { workers: [], goods: [], orders: [] };
+
     function v(id){ return document.getElementById(id).value.trim(); }
 
     function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
-        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:24}; }
+        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
         const pClean = d.phone.replace(/[\+\s]/g, '');
-        if(pClean.length < 11 || pClean.length > 12 || isNaN(pClean)) return alert("Телефон қате!");
-        if(type==='good' && isNaN(d.price.replace(/\s/g, ''))) return alert("Бағаға тек сан жазыңыз!");
-
+        if(pClean.length < 11 || pClean.length > 12) return alert("Телефон қате!");
+        
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
-            .then(() => loadMarkers()); // Тікелей жаңарту
+            .then(() => loadMarkers());
         });
     }
 
     function loadMarkers() {
         fetch(API+'/get-all').then(r => r.json()).then(data => {
-            markersGroup.clearLayers();
-            // МИНИ-ИНФО: Тек қажетті бөліктері (Қысқа)
-            data.workers.forEach(w => addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
-            data.goods.forEach(g => addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.product_name, g.id, 'good', g.device_token, '#ffc107'));
-            data.orders.forEach(o => addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'));
+            allData = data;
+            filterMarkers();
         });
     }
 
-    // АВТОМАТТЫ ЖАҢАРТУ: Әр 30 секунд сайын
-    setInterval(loadMarkers, 30000);
+    // ІЗДЕУ ЖӘНЕ ФИЛЬТР
+    function filterMarkers() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        markersGroup.clearLayers();
+
+        allData.workers.forEach(w => {
+            if(w.job.toLowerCase().includes(term)) 
+                addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff');
+        });
+        allData.goods.forEach(g => {
+            if(g.product_name.toLowerCase().includes(term))
+                addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.product_name, g.id, 'good', g.device_token, '#ffc107');
+        });
+        allData.orders.forEach(o => {
+            if(o.description.toLowerCase().includes(term))
+                addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745');
+        });
+    }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
         const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
         const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;">Өшіру</button>` : "";
         m.bindPopup(txt + del);
-        // MINI АҚПАРАТ - ҚЫСҚАРТЫЛҒАН
-        m.bindTooltip(mini.substring(0, 20), {permanent: true, direction: 'top', offset: [0, -10]});
+        m.bindTooltip(mini.substring(0,15), {permanent: true, direction: 'top', offset: [0, -10]});
         markersGroup.addLayer(m);
     }
 
-    function delItem(id, type, admin=false) {
+    function delItem(id, type) {
         if(!confirm("Өшіру?")) return;
-        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
+        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: myToken})})
         .then(() => loadMarkers());
     }
 
+    // Авто-жаңарту (30 сек)
+    setInterval(loadMarkers, 30000);
     loadMarkers();
 </script>
 </body>
