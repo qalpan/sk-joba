@@ -3,40 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Жұмыс және Тапсырыс Картасы</title>
+    <title>Жұмыс Картасы</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        body { margin: 0; font-family: sans-serif; }
-        #map { height: 70vh; width: 100%; }
-        .controls { padding: 15px; background: #eee; display: flex; gap: 10px; flex-wrap: wrap; }
-        .form-box { border: 1px solid #ccc; padding: 10px; background: white; border-radius: 8px; flex: 1; min-width: 300px; }
-        input, button, textarea { width: 100%; margin: 5px 0; padding: 8px; box-sizing: border-box; }
-        .btn-worker { background: #28a745; color: white; border: none; }
-        .btn-client { background: #dc3545; color: white; border: none; }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: #f4f4f9; }
+        #map { height: 60vh; width: 100%; border-bottom: 2px solid #ddd; }
+        .container { padding: 15px; display: flex; flex-wrap: wrap; gap: 15px; }
+        .form-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); flex: 1; min-width: 280px; }
+        h4 { margin-top: 0; color: #333; border-left: 4px solid #007bff; padding-left: 10px; }
+        input, select, textarea, button { width: 100%; margin: 8px 0; padding: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { cursor: pointer; font-weight: bold; border: none; transition: 0.3s; }
+        .btn-worker { background: #28a745; color: white; }
+        .btn-client { background: #dc3545; color: white; }
+        button:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <div class="form-box">
-        <h4>Мен Орындаушымын</h4>
+<div id="map"></div>
+
+<div class="container">
+    <div class="form-card">
+        <h4>Орындаушы (Маман)</h4>
         <input type="text" id="w_name" placeholder="Атыңыз">
-        <input type="tel" id="w_phone" placeholder="+7701..." value="+7">
-        <input type="text" id="w_job" placeholder="Мамандық (мысалы: Курьер)">
-        <button class="btn-worker" onclick="saveWorker()">Картаға шығу</button>
+        <input type="tel" id="w_phone" placeholder="+7..." value="+7">
+        <input type="text" id="w_job" placeholder="Мамандығыңыз">
+        <select id="w_duration">
+            <option value="1">1 сағатқа шығу (500 тг)</option>
+            <option value="24">1 тәулікке шығу (2000 тг)</option>
+        </select>
+        <button class="btn-worker" onclick="saveWorker()">Төлеу және Картаға шығу</button>
     </div>
 
-    <div class="form-box">
-        <h4>Маған маман керек (Тапсырыс)</h4>
+    <div class="form-card">
+        <h4>Тапсырыс беруші</h4>
         <input type="text" id="c_name" placeholder="Атыңыз">
-        <input type="tel" id="c_phone" placeholder="+7701..." value="+7">
-        <input type="password" id="c_pin" placeholder="Өшіру үшін ПИН-код (мысалы: 1234)" maxlength="4">
-        <textarea id="c_desc" placeholder="Не істеу керек?"></textarea>
-        <button class="btn-client" onclick="saveOrder()">Тапсырыс қалдыру</button>
+        <input type="tel" id="c_phone" placeholder="+7..." value="+7">
+        <textarea id="c_desc" placeholder="Қандай жұмыс істеу керек?"></textarea>
+        <button class="btn-client" onclick="saveOrder()">Тапсырыс қалдыру (Тегін)</button>
     </div>
 </div>
-
-<div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
@@ -44,111 +50,75 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const API = "https://sk-joba.onrender.com";
+    
+    // Құрылғыны тану (Тек өз тапсырысын өшіру үшін)
+    let myToken = localStorage.getItem('device_token') || Math.random().toString(36).substring(2);
+    localStorage.setItem('device_token', myToken);
 
     function loadAll() {
-        fetch(`${API}/get-all`)
-            .then(res => res.json())
-            .then(data => {
-                map.eachLayer(layer => { if(layer instanceof L.Marker) map.removeLayer(layer); });
+        fetch(`${API}/get-all`).then(res => res.json()).then(data => {
+            map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
 
-                // Мамандар (Көк маркер)
-                data.workers.forEach(w => {
-                    L.marker([w.lat, w.lon]).addTo(map)
-                     .bindPopup(`<b>Маман: ${w.name}</b><br>${w.job}<br><a href="tel:${w.phone}">${w.phone}</a>`);
-                });
-
-                // Тапсырыстар (Қызыл маркер)
-                data.orders.forEach(o => {
-                    const redIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
-                    L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map)
-                     .bindPopup(`<b>ТАПСЫРЫС: ${o.description}</b><br>Клиент: ${o.client_name}<br><a href="tel:${o.phone}">${o.phone}</a><br><button onclick="deleteOrder(${o.id})">Өшіру</button>`);
-                });
+            // Мамандар (Көк)
+            data.workers.forEach(w => {
+                L.marker([w.lat, w.lon]).addTo(map).bindPopup(`<b>Маман: ${w.name}</b><br>${w.job}<br><a href="tel:${w.phone}">${w.phone}</a>`);
             });
+
+            // Тапсырыстар (Қызыл)
+            data.orders.forEach(o => {
+                const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
+                let content = `<b>ТАПСЫРЫС: ${o.description}</b><br>Клиент: ${o.client_name}<br><a href="tel:${o.phone}">${o.phone}</a>`;
+                
+                if(o.device_token === myToken) {
+                    content += `<br><button onclick="deleteOrder(${o.id})" style="background:red; color:white; border:none; padding:5px; border-radius:4px; margin-top:5px; cursor:pointer;">Өшіру</button>`;
+                }
+                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map).bindPopup(content);
+            });
+        });
     }
 
     function saveWorker() {
+        const dur = document.getElementById('w_duration').value;
+        const price = dur === "1" ? "500 тг" : "2000 тг";
+        if(!confirm(`Төлем жасау: ${price} нөмірге: +77XXXXXXXXX. Жалғастырамыз ба?`)) return;
+
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: document.getElementById('w_name').value, phone: document.getElementById('w_phone').value, job: document.getElementById('w_job').value, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тіркелдіңіз!"); loadAll(); });
+            const body = { 
+                name: document.getElementById('w_name').value, 
+                phone: document.getElementById('w_phone').value, 
+                job: document.getElementById('w_job').value, 
+                durationHours: dur,
+                lat: p.coords.latitude, lon: p.coords.longitude 
+            };
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Сәтті қосылды!"); loadAll(); });
         });
     }
 
     function saveOrder() {
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: document.getElementById('c_name').value, description: document.getElementById('c_desc').value, phone: document.getElementById('c_phone').value, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
+            const body = { 
+                name: document.getElementById('c_name').value, 
+                description: document.getElementById('c_desc').value, 
+                phone: document.getElementById('c_phone').value, 
+                device_token: myToken,
+                lat: p.coords.latitude, lon: p.coords.longitude 
+            };
+            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тапсырыс шықты!"); loadAll(); });
         });
     }
 
     function deleteOrder(id) {
-        if(confirm("Тапсырысты өшіресіз бе?")) {
-            fetch(`${API}/delete-order/${id}`, { method: 'DELETE' }).then(() => loadAll());
+        if(confirm("Өшіресіз бе?")) {
+            fetch(`${API}/delete-order/${id}`, { 
+                method: 'DELETE', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ device_token: myToken }) 
+            }).then(() => loadAll());
         }
     }
 
-    loadAll();// Құрылғының бірегей идентификаторын алу немесе жасау
-let myToken = localStorage.getItem('device_token');
-if (!myToken) {
-    myToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    localStorage.setItem('device_token', myToken);
-}
-
-function loadAll() {
-    fetch(`${API}/get-all`)
-        .then(res => res.json())
-        .then(data => {
-            map.eachLayer(layer => { if(layer instanceof L.Marker) map.removeLayer(layer); });
-
-            // Мамандар... (код бұрынғыша)
-
-            // Тапсырыстар
-            data.orders.forEach(o => {
-                const isOwner = (o.device_token === myToken);
-                const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
-                
-                let popupContent = `<b>ТАПСЫРЫС: ${o.description}</b><br>`;
-                
-                // ЕГЕР ТӨЛЕМ МӘСЕЛЕСІ: Нөмірді жасырып қоюға болады
-                popupContent += `Клиент: ${o.client_name}<br>`;
-                popupContent += `<a href="tel:${o.phone}">${o.phone}</a><br>`;
-
-                // Тек иесіне ғана өшіру батырмасын көрсету
-                if (isOwner) {
-                    popupContent += `<button onclick="deleteOrder(${o.id})" style="background:red; color:white;">Өшіру</button>`;
-                }
-
-                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map).bindPopup(popupContent);
-            });
-        });
-}
-
-function saveOrder() {
-    navigator.geolocation.getCurrentPosition(p => {
-        const body = { 
-            name: document.getElementById('c_name').value, 
-            description: document.getElementById('c_desc').value, 
-            phone: document.getElementById('c_phone').value, 
-            lat: p.coords.latitude, lon: p.coords.longitude,
-            device_token: myToken // Токенді серверге жібереміз
-        };
-        fetch(`${API}/save-order`, { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify(body) 
-        }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
-    });
-}
-
-function deleteOrder(id) {
-    fetch(`${API}/delete-order/${id}`, { 
-        method: 'DELETE',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device_token: myToken }) 
-    }).then(() => loadAll());
-}
-
-
-    
+    loadAll();
+    setInterval(loadAll, 30000); // Әр 30 секунд сайын жаңарту
 </script>
 </body>
 </html>
