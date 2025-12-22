@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const crypto = require('crypto'); // Құрылғыны тану үшін
 
 const app = express();
 app.use(express.json());
@@ -11,78 +12,62 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ДАЙЫНДАУ
+// БАЗАНЫ ЖАҢАРТУ: device_token қосылды
 async function initDatabase() {
-    const query = `
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS workers (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            job TEXT NOT NULL,
-            lat DOUBLE PRECISION NOT NULL,
-            lon DOUBLE PRECISION NOT NULL
+            id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION
         );
         CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY,
-            client_name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            lat DOUBLE PRECISION NOT NULL,
-            lon DOUBLE PRECISION NOT NULL,
+            id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, 
+            lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
+            device_token TEXT, -- Тапсырыс иесін тану үшін
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-    `;
-    try {
-        await pool.query(query);
-        console.log("Базалық кестелер дайын.");
-    } catch (err) {
-        console.error("Кесте құру қатесі:", err);
-    }
+    `);
 }
 initDatabase();
 
-// МАМАНДАРДЫ САҚТАУ
+// ТАПСЫРЫСТАРДЫ АВТОМАТТЫ ТАЗАЛАУ (24 сағаттан ескілерін өшіру)
+async function cleanOldOrders() {
+    await pool.query("DELETE FROM orders WHERE created_at < NOW() - INTERVAL '24 hours'");
+    console.log("Ескі тапсырыстар тазаланды.");
+}
+setInterval(cleanOldOrders, 3600000); // Әр сағат сайын тексереді
+
+// ТАПСЫРЫС САҚТАУ
+app.post('/save-order', async (req, res) => {
+    const { name, description, phone, lat, lon, device_token } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1, $2, $3, $4, $5, $6)',
+            [name, description, phone, lat, lon, device_token]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+// ТАПСЫРЫСТЫ ӨШІРУ (Тек токен сәйкес келсе)
+app.delete('/delete-order/:id', async (req, res) => {
+    const { device_token } = req.body;
+    try {
+        const result = await pool.query('DELETE FROM orders WHERE id = $1 AND device_token = $2', [req.params.id, device_token]);
+        if (result.rowCount > 0) res.json({ success: true });
+        else res.status(403).send("Бұл сіздің тапсырысыңыз емес!");
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/get-all', async (req, res) => {
+    const workers = await pool.query('SELECT * FROM workers');
+    const orders = await pool.query('SELECT * FROM orders');
+    res.json({ workers: workers.rows, orders: orders.rows });
+});
+
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon } = req.body;
-    try {
-        await pool.query('INSERT INTO workers (name, phone, job, lat, lon) VALUES ($1, $2, $3, $4, $5)', [name, phone, job, lat, lon]);
-        res.json({ success: true });
-    } catch (err) { res.status(500).send(err.message); }
-});
-
-// ТАПСЫРЫСТАРДЫ САҚТАУ
-app.post('/save-order', async (req, res) => {
-    const { name, description, phone, lat, lon } = req.body;
-    try {
-        await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon) VALUES ($1, $2, $3, $4, $5)', [name, description, phone, lat, lon]);
-        res.json({ success: true });
-    } catch (err) { res.status(500).send(err.message); }
-});
-
-// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ
-app.get('/get-all', async (req, res) => {
-    try {
-        const workers = await pool.query('SELECT * FROM workers');
-        const orders = await pool.query('SELECT * FROM orders');
-        res.json({ workers: workers.rows, orders: orders.rows });
-    } catch (err) { res.status(500).send(err.message); }
-});
-
-// ТАПСЫРЫСТЫ ӨШІРУ (Клиент үшін)
-// Тапсырысты өшіру (ПИН-кодпен)
-app.delete('/delete-order/:id', async (req, res) => {
-    const { pin } = req.body; // Клиент жіберген ПИН
-    try {
-        const order = await pool.query('SELECT pin FROM orders WHERE id = $1', [req.params.id]);
-        
-        if (order.rows.length > 0 && order.rows[0].pin === pin) {
-            await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
-            res.json({ success: true });
-        } else {
-            res.status(403).send("Қате ПИН-код!");
-        }
-    } catch (err) { res.status(500).send(err.message); }
+    await pool.query('INSERT INTO workers (name, phone, job, lat, lon) VALUES ($1, $2, $3, $4, $5)', [name, phone, job, lat, lon]);
+    res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Сервер қосулы"));
+app.listen(PORT, () => console.log("Сервер дайын"));
