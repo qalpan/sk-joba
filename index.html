@@ -3,38 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Search & Live</title>
+    <title>SK-Joba | Live Search</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        /* ІЗДЕУ ЖОЛАҒЫ */
-        .search-box {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; width: 80%; max-width: 400px;
-        }
-        .search-box input {
-            width: 100%; padding: 12px; border-radius: 25px; border: 2px solid #007bff;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2); outline: none;
-        }
+        .search-box { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 85%; max-width: 400px; }
+        .search-box input { width: 100%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); outline: none; }
         #map { height: 50vh; width: 100%; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        
-        /* MINI АҚПАРАТ (ҚЫСҚА) */
-        .leaflet-tooltip { 
-            background: white !important; border: 2px solid #007bff !important; 
-            font-weight: bold !important; padding: 2px 4px !important; font-size: 11px !important; 
-        }
+        .leaflet-tooltip { background: white !important; border: 2px solid #007bff !important; font-weight: bold !important; padding: 2px 4px !important; font-size: 11px !important; }
     </style>
 </head>
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу (мысалы: Кран, Мастер...)" oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу: қызмет, тауар немесе тапсырыс..." oninput="filterMarkers()">
 </div>
 
 <div id="map"></div>
@@ -43,7 +31,7 @@
     <div class="card">
         <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
+        <input id="w_job" placeholder="Мамандық (Мәтін+Сан)">
         <input id="w_phone" placeholder="Телефон (12 сан)">
         <select id="w_dur"><option value="1">1 сағат</option><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
@@ -61,7 +49,7 @@
     <div class="card">
         <h4>📋 Тапсырыс</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Сипаттама"></textarea>
+        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
         <input id="c_phone" placeholder="Телефон">
         <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
     </div>
@@ -90,13 +78,18 @@
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
         const pClean = d.phone.replace(/[\+\s]/g, '');
-        if(pClean.length < 11 || pClean.length > 12) return alert("Телефон қате!");
-        
+        if(pClean.length < 11 || pClean.length > 12) return alert("Телефон қате (11-12 сан)!");
+        if(type==='good' && isNaN(d.price.replace(/\s/g,''))) return alert("Бағаға тек сан жазыңыз!");
+
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
-            .then(() => loadMarkers());
-        });
+            .then(() => {
+                if(type === 'order') alert("Тапсырыс жарияланды!");
+                else alert("Ақпарат тіркелуге жіберілді. Тексеруден өткен соң картада шығады!");
+                loadMarkers();
+            });
+        }, () => alert("Геолокация қажет!"));
     }
 
     function loadMarkers() {
@@ -106,42 +99,44 @@
         });
     }
 
-    // ІЗДЕУ ЖӘНЕ ФИЛЬТР
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
 
+        // Қызметтерді іздеу ("қызмет" сөзін де таниды)
         allData.workers.forEach(w => {
-            if(w.job.toLowerCase().includes(term)) 
+            if(w.job.toLowerCase().includes(term) || term === "қызмет") 
                 addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff');
         });
+        // Тауарларды іздеу ("тауар" сөзін де таниды)
         allData.goods.forEach(g => {
-            if(g.product_name.toLowerCase().includes(term))
+            if(g.product_name.toLowerCase().includes(term) || term === "тауар")
                 addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.product_name, g.id, 'good', g.device_token, '#ffc107');
         });
+        // Тапсырыстарды іздеу ("тапсырыс" сөзін де таниды)
         allData.orders.forEach(o => {
-            if(o.description.toLowerCase().includes(term))
+            if(o.description.toLowerCase().includes(term) || term === "тапсырыс")
                 addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745');
         });
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
-        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+        const icon = L.divIcon({html: `<div style=\"background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;\"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
-        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;">Өшіру</button>` : "";
+        const del = token === myToken ? `<br><button onclick=\"delItem(${id},'${type}')\" style=\"background:red;color:white;border:none;width:100%;cursor:pointer;\">Өшіру</button>` : "";
         m.bindPopup(txt + del);
+        // Mini ақпаратты қысқартып көрсету
         m.bindTooltip(mini.substring(0,15), {permanent: true, direction: 'top', offset: [0, -10]});
         markersGroup.addLayer(m);
     }
 
     function delItem(id, type) {
-        if(!confirm("Өшіру?")) return;
+        if(!confirm("Өшіруді растайсыз ба?")) return;
         fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: myToken})})
         .then(() => loadMarkers());
     }
 
-    // Авто-жаңарту (30 сек)
-    setInterval(loadMarkers, 30000);
+    setInterval(loadMarkers, 30000); // 30 секунд сайын авто-жаңарту
     loadMarkers();
 </script>
 </body>
