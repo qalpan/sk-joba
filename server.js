@@ -9,16 +9,23 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejec
 // САҚТАУ: Жұмысшы
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
-    const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
-    await pool.query('INSERT INTO workers (name, phone, job, lat, lon, expires_at, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, TRUE)', [name, phone, job, lat, lon, expiresAt, device_token]);
+    const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
+    await pool.query('INSERT INTO workers (name, phone, job, lat, lon, expires_at, device_token) VALUES ($1,$2,$3,$4,$5,$6,$7)', [name, phone, job, lat, lon, exp, device_token]);
     res.json({ success: true });
 });
 
 // САҚТАУ: Тауар
 app.post('/save-goods', async (req, res) => {
     const { name, product, price, phone, lat, lon, durationHours, device_token } = req.body;
-    const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
-    await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8, TRUE)', [name, product, price, phone, lat, lon, expiresAt, device_token]);
+    const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
+    await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [name, product, price, phone, lat, lon, exp, device_token]);
+    res.json({ success: true });
+});
+
+// САҚТАУ: Тапсырыс (ОСЫ ЖЕРДІ ҚАЙТА ҚОСТЫМ)
+app.post('/save-order', async (req, res) => {
+    const { name, description, phone, lat, lon, device_token } = req.body;
+    await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, description, phone, lat, lon, device_token]);
     res.json({ success: true });
 });
 
@@ -26,14 +33,16 @@ app.post('/save-goods', async (req, res) => {
 app.get('/get-all', async (req, res) => {
     const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE AND expires_at > NOW()');
     const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE AND expires_at > NOW()');
-    res.json({ workers: w.rows, goods: g.rows });
+    const o = await pool.query('SELECT * FROM orders WHERE created_at > NOW() - interval \'24 hours\'');
+    res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
 });
 
-// ӨШІРУ (ID-ді сан ретінде тексеру қосылды)
+// ӨШІРУ
 app.post('/delete-item', async (req, res) => {
     const { id, type, token } = req.body;
-    const table = type === 'worker' ? 'workers' : 'goods';
-    await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [parseInt(id), token]);
+    const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
+    const query = token === 'ADMIN' ? `DELETE FROM ${table} WHERE id = $1` : `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
+    await pool.query(query, token === 'ADMIN' ? [parseInt(id)] : [parseInt(id), token]);
     res.json({ success: true });
 });
 
