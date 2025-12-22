@@ -21,10 +21,7 @@ const pool = new Pool({
 // БАЗАНЫ ТЕКСЕРУ (Бұл бөлім базаның дайын екеніне көз жеткізеді)
 async function initDB() {
     try {
-        // Ескі кестелерді өшіру (Базаны жаңарту үшін)
-        await pool.query('DROP TABLE IF EXISTS workers, goods, orders CASCADE');
-        
-        // Жаңа құрылыммен қайта құру
+        // DROP TABLE жолын алып тастадық, енді деректер өшпейді
         await pool.query(`
             CREATE TABLE IF NOT EXISTS workers (
                 id SERIAL PRIMARY KEY, 
@@ -64,7 +61,7 @@ async function initDB() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log("Database updated with fee_amount column");
+        console.log("Database tables checked and ready.");
     } catch (err) {
         console.error("DB Init Error:", err);
     }
