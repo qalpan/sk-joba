@@ -11,18 +11,34 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
+// БАЗАДА КЕСТЕ ҚҰРУ (Осы бөлім сізде жоқ болды)
+async function initDatabase() {
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            job TEXT NOT NULL,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `;
+    try {
+        await pool.query(createTableQuery);
+        console.log("Кесте тексерілді немесе құрылды.");
+    } catch (err) {
+        console.error("Кесте құру кезінде қате шықты:", err);
+    }
+}
+initDatabase(); // Сервер қосылғанда бір рет іске қосылады
+
 app.post('/save-location', async (req, res) => {
     const { name, phone, job, lat, lon } = req.body;
 
-    // СЕРВЕРЛІК ТЕКСЕРУ (Осы жерді өзгерттік)
+    const phoneRegex = /^\+7[0-9]{10}$/;
     if (!name || name.length < 2) return res.status(400).send("Аты қате");
-    
-    // Түзетілген Regex: +7-мен басталатын 12 символ (+ және 11 сан)
-    const phoneRegex = /^\+7[0-9]{10}$/; 
-    if (!phone || !phoneRegex.test(phone)) {
-        return res.status(400).send("Телефон қате! Формат: +77017398309");
-    }
-    
+    if (!phone || !phoneRegex.test(phone)) return res.status(400).send("Телефон қате");
     if (!job || job.length < 3) return res.status(400).send("Мамандық қате");
 
     try {
@@ -32,8 +48,8 @@ app.post('/save-location', async (req, res) => {
         );
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Базалық қате");
+        console.error("Базаға жазу қатесі:", err.message);
+        res.status(500).send(err.message);
     }
 });
 
@@ -42,12 +58,11 @@ app.get('/get-locations', async (req, res) => {
         const result = await pool.query('SELECT * FROM users');
         res.json(result.rows);
     } catch (err) {
-        res.status(500).send("Қате");
+        res.status(500).send(err.message);
     }
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log("Сервер қосылды");
-    console.log("База дайын");
+    console.log("Сервер 10000 портында қосылды");
 });
