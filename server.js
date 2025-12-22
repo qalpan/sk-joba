@@ -11,13 +11,16 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАДА КЕСТЕ ҚҰРУ (Осы бөлім сізде жоқ болды)
+// БАЗАНЫ ДАЙЫНДАУ
 async function initDatabase() {
     const query = `
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS workers (
             id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL, phone TEXT NOT NULL, job TEXT NOT NULL,
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION, role TEXT DEFAULT 'worker'
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            job TEXT NOT NULL,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL
         );
         CREATE TABLE IF NOT EXISTS orders (
             id SERIAL PRIMARY KEY,
@@ -26,44 +29,52 @@ async function initDatabase() {
             phone TEXT NOT NULL,
             lat DOUBLE PRECISION NOT NULL,
             lon DOUBLE PRECISION NOT NULL,
-            status TEXT DEFAULT 'open',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `;
-    await pool.query(query);
-}
-initDatabase(); // Сервер қосылғанда бір рет іске қосылады
-
-app.post('/save-location', async (req, res) => {
-    const { name, phone, job, lat, lon } = req.body;
-
-    const phoneRegex = /^\+7[0-9]{10}$/;
-    if (!name || name.length < 2) return res.status(400).send("Аты қате");
-    if (!phone || !phoneRegex.test(phone)) return res.status(400).send("Телефон қате");
-    if (!job || job.length < 3) return res.status(400).send("Мамандық қате");
-
     try {
-        await pool.query(
-            'INSERT INTO users (name, phone, job, lat, lon) VALUES ($1, $2, $3, $4, $5)',
-            [name, phone, job, lat, lon]
-        );
-        res.json({ success: true });
+        await pool.query(query);
+        console.log("Базалық кестелер дайын.");
     } catch (err) {
-        console.error("Базаға жазу қатесі:", err.message);
-        res.status(500).send(err.message);
+        console.error("Кесте құру қатесі:", err);
     }
+}
+initDatabase();
+
+// МАМАНДАРДЫ САҚТАУ
+app.post('/save-worker', async (req, res) => {
+    const { name, phone, job, lat, lon } = req.body;
+    try {
+        await pool.query('INSERT INTO workers (name, phone, job, lat, lon) VALUES ($1, $2, $3, $4, $5)', [name, phone, job, lat, lon]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(err.message); }
 });
 
-app.get('/get-locations', async (req, res) => {
+// ТАПСЫРЫСТАРДЫ САҚТАУ
+app.post('/save-order', async (req, res) => {
+    const { name, description, phone, lat, lon } = req.body;
     try {
-        const result = await pool.query('SELECT * FROM users');
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).send(err.message);
-    }
+        await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon) VALUES ($1, $2, $3, $4, $5)', [name, description, phone, lat, lon]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ
+app.get('/get-all', async (req, res) => {
+    try {
+        const workers = await pool.query('SELECT * FROM workers');
+        const orders = await pool.query('SELECT * FROM orders');
+        res.json({ workers: workers.rows, orders: orders.rows });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+// ТАПСЫРЫСТЫ ӨШІРУ (Клиент үшін)
+app.delete('/delete-order/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).send(err.message); }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-    console.log("Сервер 10000 портында қосылды");
-});
+app.listen(PORT, () => console.log("Сервер қосулы"));
