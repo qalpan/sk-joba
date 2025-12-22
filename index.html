@@ -3,21 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Live</title>
+    <title>SK-Joba | Төлем және Карта</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        /* Картаның биіктігі мен түсі нақты болуы тиіс */
-        #map { height: 45vh; width: 100%; border-bottom: 2px solid #007bff; background: #e0e0e0; }
+        #map { height: 50vh; width: 100%; border-bottom: 2px solid #007bff; background: #eee; }
         .search-box { padding: 10px; background: white; text-align: center; }
         .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; outline: none; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
-        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 12px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 14px; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #0056b3; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        
+        /* Маркер үстіндегі тұрақты жазу стилі */
+        .marker-label {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
@@ -36,28 +48,28 @@
 
 <div class="container">
     <div class="card">
-        <h4>👷 Қызмет</h4>
+        <h4>👷 Қызмет (Ақылы)</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
-        <input id="w_phone" placeholder="Телефон">
+        <input id="w_job" placeholder="Мамандық (мыс: Сантехник)">
+        <input id="w_phone" placeholder="Телефон (8700...)">
         <select id="w_dur">
-            <option value="1">1 сағат жариялау — 49₸</option>
-            <option value="24">1 тәулік жариялау — 490₸</option>
+            <option value="1">1 сағат — 49₸</option>
+            <option value="24">1 тәулік — 490₸</option>
         </select>
-        <button onclick="saveItem('worker')">Тіркелу</button>
+        <button onclick="saveItem('worker')">Төлем жасап тіркелу</button>
     </div>
 
     <div class="card">
-        <h4>📦 Тауар</h4>
+        <h4>📦 Тауар (Ақылы)</h4>
         <input id="g_name" placeholder="Сатушы аты">
-        <input id="g_prod" placeholder="Тауар атауы">
-        <input id="g_price" placeholder="Тауардың өз бағасы">
+        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_price" placeholder="Бағасы">
         <input id="g_phone" placeholder="Телефон">
         <select id="g_dur">
-            <option value="1">1 сағат жариялау — 49₸</option>
-            <option value="24">1 тәулік жариялау — 490₸</option>
+            <option value="1">1 сағат — 49₸</option>
+            <option value="24">1 тәулік — 490₸</option>
         </select>
-        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Жариялау (Төлеммен)</button>
+        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Төлем жасап жариялау</button>
     </div>
 
     <div class="card">
@@ -65,7 +77,7 @@
         <input id="c_name" placeholder="Атыңыз">
         <textarea id="c_desc" placeholder="Не қажет?"></textarea>
         <input id="c_phone" placeholder="Телефон">
-        <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
+        <button onclick="saveItem('order')" style="background:#28a745;">Тегін жариялау</button>
     </div>
 </div>
 
@@ -73,24 +85,18 @@
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 <script>
     const API = "https://sk-joba.onrender.com";
-    const KASPI_PHONE = "+77017398309"; 
-    const ADMIN_EMAIL = "sk-joba@outlook.com"; 
-    const SKYPE_ID = "live:ckt-proekt"; 
+    const KASPI_PHONE = "7017398309"; // Тек сандар
+    const ADMIN_EMAIL = "sk-joba@outlook.com";
 
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // КАРТАНЫ БАПТАУ
     const map = L.map('map').setView([43.2389, 76.8897], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
-    // Карта өлшемін жаңарту (Бұл маңызды!)
-    setTimeout(() => { map.invalidateSize(); }, 500);
+    setTimeout(() => map.invalidateSize(), 500);
 
     let allData = { workers: [], goods: [], orders: [] };
 
@@ -102,79 +108,108 @@
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        if(!d.phone) return alert("Телефон толтырыңыз!");
+        if(!d.phone) return alert("Телефон нөмірін толтырыңыз!");
 
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
+            
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
             .then(() => {
                 if(type === 'order') {
-                    alert("Тапсырыс шықты!");
+                    alert("Тапсырыс сәтті жарияланды!");
                 } else {
                     const amount = d.durationHours === "1" ? "49" : "490";
-                    const subject = encodeURIComponent(`SK-Joba төлемі: ${d.phone}`);
-                    const body = encodeURIComponent(`Сәлеметсіз бе! SK-Joba-ға жарнама бердім.\nТөлем сомасы: ${amount}₸.\nТелефон: ${d.phone}`);
                     
-                    if(confirm(`Өтінім қабылданды! Ақысы: ${amount}₸.\n\nKaspi-ге өтіп төлем жасайсыз ба?`)) {
-                        window.open(`https://kaspi.kz/pay/Transfer?phone=${KASPI_PHONE.replace('+', '')}`, '_blank');
+                    // Клиентке түсінікті нұсқаулық
+                    const confirmPayment = confirm(
+                        `НҰСҚАУЛЫҚ:\n\n` +
+                        `1. Қазір Kaspi ашылады.\n` +
+                        `2. Нөмірге: ${KASPI_PHONE} соманы (${amount}₸) аударыңыз.\n` +
+                        `3. Төлемнен кейін Email арқылы чек жіберіңіз.\n\n` +
+                        `Kaspi-ге өтуді растайсыз ба?`
+                    );
+
+                    if(confirmPayment) {
+                        // Тікелей аударым бетіне сілтеме
+                        window.open(`https://kaspi.kz/pay/Transfer?phone=${KASPI_PHONE}`, '_blank');
+                        
                         setTimeout(() => {
-                            if(confirm("Төлем чегін Email арқылы жібересіз бе?")) {
-                                window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
-                            } else {
-                                window.location.href = `skype:${SKYPE_ID}?chat`;
-                            }
-                        }, 4000);
+                            const subject = encodeURIComponent(`SK-Joba Төлем: ${d.phone}`);
+                            const body = encodeURIComponent(`Сәлеметсіз бе! Төлем жасадым (${amount}₸). Менің нөмірім: ${d.phone}. Чек тіркелді.`);
+                            window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
+                        }, 5000);
                     }
                 }
                 loadMarkers();
             });
-        }, () => alert("GPS қосыңыз!"));
+        }, () => alert("GPS-ті қосыңыз!"));
     }
 
     function loadMarkers() {
         fetch(API+'/get-all').then(r => r.json()).then(data => {
             allData = data;
             filterMarkers();
-        }).catch(err => console.error("Дерек алу қатесі:", err));
+        });
     }
 
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
-        allData.workers.forEach(w => { if(w.job.toLowerCase().includes(term)) addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'); });
-        allData.goods.forEach(g => { if(g.product_name.toLowerCase().includes(term)) addM(g.lat, g.lon, `📦 ${g.product_name}<br>Бағасы: ${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'); });
-        allData.orders.forEach(o => { if(o.description.toLowerCase().includes(term)) addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'); });
+        
+        allData.workers.forEach(w => { 
+            if(w.job.toLowerCase().includes(term)) addM(w.lat, w.lon, `👷 ${w.job}<br>Аты: ${w.name}<br>Тел: ${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'); 
+        });
+        allData.goods.forEach(g => { 
+            if(g.product_name.toLowerCase().includes(term)) addM(g.lat, g.lon, `📦 ${g.product_name}<br>Бағасы: ${g.price}₸<br>Тел: ${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'); 
+        });
+        allData.orders.forEach(o => { 
+            if(o.description.toLowerCase().includes(term)) addM(o.lat, o.lon, `📋 ${o.description}<br>Тел: ${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'); 
+        });
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
-        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`, className:''});
+        // Динамикалық маркер (нүкте)
+        const icon = L.divIcon({
+            html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
+            className: ''
+        });
+        
         const m = L.marker([lat, lon], {icon});
-        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;margin-top:5px;width:100%;cursor:pointer;padding:5px;">Өшіру ❌</button>` : "";
+        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;margin-top:5px;width:100%;padding:4px;font-size:10px;">Өшіру ❌</button>` : "";
+        
         m.bindPopup(txt + delBtn);
-        m.bindTooltip(mini.substring(0,15), {permanent: false, direction: 'top'});
+
+        // МИНИ-АҚПАРАТ (Әрқашан маркердің үстінде көрініп тұрады)
+        m.bindTooltip(mini, {
+            permanent: true, 
+            direction: 'top', 
+            offset: [0, -10],
+            className: 'marker-label'
+        });
+
         markersGroup.addLayer(m);
     }
 
     function delItem(id, type, admin=false) {
-        if(!confirm("Өшіруді растайсыз ба?")) return;
+        if(!confirm("Бұл хабарландыруды өшіресіз бе?")) return;
         fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
         .then(() => admin ? loadAdmin() : loadMarkers());
     }
 
     window.onhashchange = () => {
         if(location.hash === "#admin777") {
-            const p = prompt("Құпия сөз:");
+            const p = prompt("Админ пароль:");
             if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
         } else { document.getElementById('admin-modal').style.display='none'; }
     };
 
     function loadAdmin() {
         fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Инфо</th><th>Ақысы</th><th>Әрекет</th></tr>`;
+            let h = `<table border="1" style="width:100%; border-collapse:collapse; font-size:12px;"><tr><th>Инфо</th><th>Ақысы</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
-                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅</button><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`;
+                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅ Қос</button></td></tr>`;
             });
-            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Жаңа өтінімдер жоқ.";
+            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Күтудегі төлемдер жоқ.";
         });
     }
 
