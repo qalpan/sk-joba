@@ -9,13 +9,12 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 50vh; width: 100%; border-bottom: 3px solid #007bff; }
+        #map { height: 55vh; width: 100%; border-bottom: 3px solid #007bff; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .invalid { border: 2px solid red !important; background: #fff8f8; }
-        .leaflet-tooltip { background: white !important; border: 2px solid #007bff !important; color: black !important; font-weight: bold !important; padding: 2px 5px; border-radius: 4px; }
+        .leaflet-tooltip { background: white !important; border: 2px solid #007bff !important; color: black !important; font-weight: bold !important; padding: 2px 5px; border-radius: 4px; font-size: 13px; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
     </style>
 </head>
@@ -28,7 +27,7 @@
         <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық (Мәтін+Сан)">
-        <input id="w_phone" placeholder="Телефон">
+        <input id="w_phone" placeholder="Телефон (11-12 сан)">
         <select id="w_dur"><option value="1">1 сағат</option><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
     </div>
@@ -36,7 +35,7 @@
     <div class="card">
         <h4>📦 Тауар</h4>
         <input id="g_name" placeholder="Атыңыз">
-        <input id="g_prod" placeholder="Тауар атауы">
+        <input id="g_prod" placeholder="Тауар атауы (Мәтін+Сан)">
         <input id="g_price" placeholder="Бағасы (Тек сан)">
         <input id="g_phone" placeholder="Телефон">
         <select id="g_dur"><option value="1">1 сағат</option><option value="24" selected>1 тәулік</option></select>
@@ -44,9 +43,9 @@
     </div>
 
     <div class="card">
-        <h4>📋 Тапсырыс (КЕРЕК)</h4>
+        <h4>📋 Тапсырыс</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
+        <textarea id="c_desc" placeholder="Сипаттама (Мәтін+Сан)"></textarea>
         <input id="c_phone" placeholder="Телефон">
         <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
     </div>
@@ -73,26 +72,20 @@
     function v(id){ return document.getElementById(id).value.trim(); }
 
     function saveItem(type) {
-        let d = {}, path = '', f = [], nf = [];
-        if(type==='worker'){ f=['w_name','w_job','w_phone']; path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
-        if(type==='good'){ f=['g_name','g_prod','g_price','g_phone']; nf=['g_price']; path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
-        if(type==='order'){ f=['c_name','c_desc','c_phone']; path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
+        let d = {}, path = '';
+        if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
+        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
+        if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        // ТЕКСЕРУ: Телефон (11-12 таңба)
+        // ТЕЛЕФОН ТЕКСЕРУ (11-12)
         const pClean = d.phone.replace(/[\+\s]/g, '');
-        if(pClean.length < 11 || pClean.length > 12 || isNaN(pClean)) {
-            alert("Телефонды дұрыс жазыңыз (11-12 сан)!");
-            return;
-        }
+        if(pClean.length < 11 || pClean.length > 12 || isNaN(pClean)) return alert("Телефон нөмірі қате!");
 
-        // ТЕКСЕРУ: Баға (Тек сан)
-        if(type==='good' && (isNaN(d.price.replace(/\s/g, '')) || d.price === "")) {
-            alert("Бағаға тек сан жазыңыз!");
-            return;
-        }
+        // БАҒА ТЕКСЕРУ
+        if(type==='good' && (isNaN(d.price.replace(/\s/g, '')) || d.price === "")) return alert("Бағаға тек сан жазыңыз!");
 
-        // Бос орындар
-        if(f.some(id => !v(id))) { alert("Барлық жерді толтырыңыз!"); return; }
+        // БОС ОРЫН
+        if(!d.name || (type==='worker' && !d.job) || (type==='good' && !d.product) || (type==='order' && !d.description)) return alert("Барлық жерді толтырыңыз!");
 
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
@@ -104,16 +97,19 @@
     function loadMarkers() {
         fetch(API+'/get-all').then(r => r.json()).then(data => {
             markersGroup.clearLayers();
-            data.workers.forEach(w => addM(w.lat, w.lon, `👷 ${w.job}<br>${w.name}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
-            data.goods.forEach(g => addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸<br>${g.phone}`, g.price+"₸", g.id, 'good', g.device_token, '#ffc107'));
-            data.orders.forEach(o => addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, "КЕРЕК", o.id, 'order', o.device_token, '#28a745'));
+            // Қызмет - Мамандығы (job)
+            data.workers.forEach(w => addM(w.lat, w.lon, `👷 <b>${w.job}</b><br>${w.name}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
+            // Тауар - Атауы (product_name)
+            data.goods.forEach(g => addM(g.lat, g.lon, `📦 <b>${g.product_name}</b><br>${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'));
+            // Тапсырыс - Тек сипаттамасы (description), "Керек" сөзі алынып тасталды
+            data.orders.forEach(o => addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'));
         });
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
         const icon = L.divIcon({html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
-        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;padding:5px;border-radius:3px;">Өшіру</button>` : "";
+        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;padding:5px;">Өшіру</button>` : "";
         m.bindPopup(txt + del);
         m.bindTooltip(mini, {permanent: true, direction: 'top', offset: [0, -10]});
         markersGroup.addLayer(m);
