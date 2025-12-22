@@ -86,7 +86,69 @@
         }
     }
 
-    loadAll();
+    loadAll();// Құрылғының бірегей идентификаторын алу немесе жасау
+let myToken = localStorage.getItem('device_token');
+if (!myToken) {
+    myToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem('device_token', myToken);
+}
+
+function loadAll() {
+    fetch(`${API}/get-all`)
+        .then(res => res.json())
+        .then(data => {
+            map.eachLayer(layer => { if(layer instanceof L.Marker) map.removeLayer(layer); });
+
+            // Мамандар... (код бұрынғыша)
+
+            // Тапсырыстар
+            data.orders.forEach(o => {
+                const isOwner = (o.device_token === myToken);
+                const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
+                
+                let popupContent = `<b>ТАПСЫРЫС: ${o.description}</b><br>`;
+                
+                // ЕГЕР ТӨЛЕМ МӘСЕЛЕСІ: Нөмірді жасырып қоюға болады
+                popupContent += `Клиент: ${o.client_name}<br>`;
+                popupContent += `<a href="tel:${o.phone}">${o.phone}</a><br>`;
+
+                // Тек иесіне ғана өшіру батырмасын көрсету
+                if (isOwner) {
+                    popupContent += `<button onclick="deleteOrder(${o.id})" style="background:red; color:white;">Өшіру</button>`;
+                }
+
+                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map).bindPopup(popupContent);
+            });
+        });
+}
+
+function saveOrder() {
+    navigator.geolocation.getCurrentPosition(p => {
+        const body = { 
+            name: document.getElementById('c_name').value, 
+            description: document.getElementById('c_desc').value, 
+            phone: document.getElementById('c_phone').value, 
+            lat: p.coords.latitude, lon: p.coords.longitude,
+            device_token: myToken // Токенді серверге жібереміз
+        };
+        fetch(`${API}/save-order`, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify(body) 
+        }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
+    });
+}
+
+function deleteOrder(id) {
+    fetch(`${API}/delete-order/${id}`, { 
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ device_token: myToken }) 
+    }).then(() => loadAll());
+}
+
+
+    
 </script>
 </body>
 </html>
