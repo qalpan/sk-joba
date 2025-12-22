@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marketplace SK</title>
+    <title>SK-Joba | Marketplace</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
@@ -12,11 +12,11 @@
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #ccc; }
         .kaspi { display: block; background: #e81d25; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-bottom: 5px; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10001; padding:20px; overflow-y:auto; }
         .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 10px; }
+        .invalid { border: 2px solid red !important; }
     </style>
 </head>
 <body>
@@ -38,7 +38,7 @@
         <h4>📦 Тауар сату</h4>
         <input id="g_name" placeholder="Атыңыз">
         <input id="g_prod" placeholder="Тауар аты">
-        <input id="g_price" placeholder="Бағасы">
+        <input id="g_price" placeholder="Бағасы (Тек сан)">
         <input id="g_phone" placeholder="Телефон">
         <select id="g_dur" onchange="updPrice('g')"><option value="1">1 сағат (49₸)</option><option value="24" selected>1 тәулік (490₸)</option></select>
         <a id="g_link" href="https://kaspi.kz/pay/_/transfer?number=77012223344&amount=490" target="_blank" class="kaspi" style="background:#ffc107; color:black;">Kaspi төлеу 490₸</a>
@@ -55,8 +55,8 @@
 </div>
 
 <div id="admin-modal">
-    <button onclick="window.location.hash=''" style="width:auto; float:right; background:#333;">❌ Жабу</button>
-    <h3>Төлемдерді растау</h3>
+    <button onclick="window.location.hash=''" style="width:auto; float:right;">❌ Жабу</button>
+    <h3>Админ: Төлемдер</h3>
     <div id="admin-list"></div>
 </div>
 
@@ -78,14 +78,16 @@
         l.href = `https://kaspi.kz/pay/_/transfer?number=77012223344&amount=${pr}`;
     }
 
-    function check(ids) {
+    function check(ids, numbers = []) {
         let ok = true;
         ids.forEach(id => {
             const el = document.getElementById(id);
-            if(!el.value.trim()) { el.style.border = "2px solid red"; ok = false; }
-            else { el.style.border = "1px solid #ccc"; }
+            const val = el.value.trim();
+            if(!val) { el.classList.add('invalid'); ok = false; }
+            else if(numbers.includes(id) && isNaN(val.replace(/\s/g, ''))) { el.classList.add('invalid'); alert("Бағаға тек сан жазыңыз!"); ok = false; }
+            else { el.classList.remove('invalid'); }
         });
-        if(!ok) alert("Барлық жолды толтырыңыз!");
+        if(!ok) alert("Қателерді түзетіңіз!");
         return ok;
     }
 
@@ -98,11 +100,11 @@
     }
 
     function saveGoods(btn) {
-        if(!check(['g_name','g_prod','g_price','g_phone'])) return;
+        if(!check(['g_name','g_prod','g_price','g_phone'], ['g_price'])) return;
         btn.disabled = true;
         navigator.geolocation.getCurrentPosition(p => {
             send('/save-goods', {name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur'), lat:p.coords.latitude, lon:p.coords.longitude, device_token:myToken}, btn);
-        }, () => { btn.disabled = false; });
+        }, () => { alert("Геолокация қажет!"); btn.disabled = false; });
     }
 
     function saveOrder(btn) {
@@ -110,7 +112,7 @@
         btn.disabled = true;
         navigator.geolocation.getCurrentPosition(p => {
             send('/save-order', {name:v('c_name'), description:v('c_desc'), phone:v('c_phone'), lat:p.coords.latitude, lon:p.coords.longitude, device_token:myToken}, btn);
-        }, () => { btn.disabled = false; });
+        }, () => { alert("Геолокация қажет!"); btn.disabled = false; });
     }
 
     function send(path, data, btn) {
@@ -122,14 +124,14 @@
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             markersGroup.clearLayers();
-            data.workers.forEach(w => L.marker([w.lat, w.lon]).addTo(markersGroup).bindPopup(`👷 ${w.job}<br>${w.name}<br>${w.phone}`));
+            data.workers.forEach(w => L.marker([w.lat, w.lon]).addTo(markersGroup).bindPopup(`<b>👷 ${w.job}</b><br>Аты: ${w.name}<br>Тел: <a href="tel:${w.phone}">${w.phone}</a>`));
             data.goods.forEach(g => {
-                const icon = L.divIcon({html: `<div style="background:#ffc107;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
-                L.marker([g.lat, g.lon], {icon}).addTo(markersGroup).bindPopup(`📦 ${g.product_name}<br>${g.price}₸<br>${g.phone}`);
+                const icon = L.divIcon({html: `<div style="background:#ffc107;width:15px;height:15px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+                L.marker([g.lat, g.lon], {icon}).addTo(markersGroup).bindPopup(`<b>📦 ${g.product_name}</b><br>Бағасы: ${g.price}₸<br>Сатушы: ${g.seller_name}<br>Тел: <a href="tel:${g.phone}">${g.phone}</a>`);
             });
             data.orders.forEach(o => {
-                const icon = L.divIcon({html: `<div style="background:#28a745;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
-                L.marker([o.lat, o.lon], {icon}).addTo(markersGroup).bindPopup(`📋 Тапсырыс<br>${o.description}<br>${o.phone}`);
+                const icon = L.divIcon({html: `<div style="background:#28a745;width:15px;height:15px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+                L.marker([o.lat, o.lon], {icon}).addTo(markersGroup).bindPopup(`<b>📋 ТАПСЫРЫС</b><br>${o.description}<br>Клиент: ${o.client_name}<br>Тел: <a href="tel:${o.phone}">${o.phone}</a>`);
             });
         });
     }
@@ -145,8 +147,8 @@
 
     function loadAdmin() {
         fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table class="admin-table"><tr><th>Аты/Тел</th><th>Ақпарат</th><th>Сома</th><th>Әрекет</th></tr>`;
-            list.forEach(i => h += `<tr><td>${i.name}<br>${i.phone}</td><td>${i.info}</td><td style="color:red;font-weight:bold;">${i.price}</td><td><button onclick="act('${i.id}','${i.type}')">Растау</button></td></tr>`);
+            let h = `<table class="admin-table"><tr><th>Күні</th><th>Аты/Тел</th><th>Ақпарат</th><th>Сома</th><th>Әрекет</th></tr>`;
+            list.forEach(i => h += `<tr><td>${i.d}</td><td>${i.name}<br>${i.phone}</td><td>${i.info}</td><td style="color:red;font-weight:bold;">${i.p}</td><td><button onclick="act('${i.id}','${i.type}')">Растау</button></td></tr>`);
             document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Өтінім жоқ.";
         });
     }
