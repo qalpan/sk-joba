@@ -71,3 +71,36 @@ app.post('/save-worker', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log("Сервер дайын"));
+
+// server.js ішіндегі өзгерістер
+async function initDatabase() {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS workers (
+            id SERIAL PRIMARY KEY,
+            name TEXT, phone TEXT, job TEXT,
+            lat DOUBLE PRECISION, lon DOUBLE PRECISION,
+            expires_at TIMESTAMP -- Төлемнің біту уақыты
+        );
+    `);
+}
+
+// Уақыты біткен мамандарды автоматты өшіру
+async function clearExpiredWorkers() {
+    await pool.query("DELETE FROM workers WHERE expires_at < NOW()");
+}
+setInterval(clearExpiredWorkers, 60000); // Әр минут сайын
+
+// Төлемнен кейін орындаушыны белсендіру
+app.post('/activate-worker', async (req, res) => {
+    const { name, phone, job, lat, lon, durationHours } = req.body;
+    // durationHours: 1 (сағат) немесе 24 (тәулік)
+    const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+    
+    try {
+        await pool.query(
+            'INSERT INTO workers (name, phone, job, lat, lon, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+            [name, phone, job, lat, lon, expiresAt]
+        );
+        res.json({ success: true, expiresAt });
+    } catch (err) { res.status(500).send(err.message); }
+});
