@@ -6,7 +6,6 @@ app.use(cors()); app.use(express.json());
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-// БД Инициализация
 async function initDB() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS workers (id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -16,7 +15,6 @@ async function initDB() {
 }
 initDB();
 
-// САҚТАУ
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -37,7 +35,6 @@ app.post('/save-order', async (req, res) => {
     res.json({success:true});
 });
 
-// КАРТАҒА ШЫҒАРУ
 app.get('/get-all', async (req, res) => {
     const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE AND expires_at > NOW()');
     const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE AND expires_at > NOW()');
@@ -45,13 +42,9 @@ app.get('/get-all', async (req, res) => {
     res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
 });
 
-// АДМИН: Күтудегілер (Төлем есептеумен)
 app.get('/admin/pending', async (req, res) => {
-    const w = await pool.query(`SELECT id, name, job as info, phone, 'worker' as type, 
-        CASE WHEN (expires_at - created_at) > interval '2 hours' THEN '490₸' ELSE '49₸' END as price 
-        FROM workers WHERE is_active = FALSE`);
-    const g = await pool.query(`SELECT id, seller_name as name, product_name as info, phone, 'good' as type, '490₸' as price 
-        FROM goods WHERE is_active = FALSE`);
+    const w = await pool.query(`SELECT id, name, job as info, phone, 'worker' as type, CASE WHEN (expires_at - created_at) > interval '2 hours' THEN '490₸' ELSE '49₸' END as price FROM workers WHERE is_active = FALSE`);
+    const g = await pool.query(`SELECT id, seller_name as name, product_name as info, phone, 'good' as type, '490₸' as price FROM goods WHERE is_active = FALSE`);
     res.json([...w.rows, ...g.rows]);
 });
 
