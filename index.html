@@ -14,10 +14,10 @@
         .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; outline: none; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
-        .price-tag { position: absolute; top: 10px; right: 10px; font-size: 12px; color: #d9534f; font-weight: bold; }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        .whatsapp-btn { background: #25D366 !important; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -73,6 +73,8 @@
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 <script>
     const API = "https://sk-joba.onrender.com";
+    const KASPI_PHONE = "+77017398309"; // ОСЫ ЖЕРГЕ КАСПИ НӨМІРІҢІЗДІ ЖАЗЫҢЫЗ
+    
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
@@ -85,7 +87,7 @@
 
     function v(id){ return document.getElementById(id).value.trim(); }
 
-function saveItem(type) {
+    function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
@@ -97,8 +99,19 @@ function saveItem(type) {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
             .then(() => {
-                if(type === 'order') alert("Тапсырыс шықты!");
-                else alert("Тіркелуге жіберілді. Таңдалған сома төленген соң картада шығады!");
+                if(type === 'order') {
+                    alert("Тапсырыс шықты!");
+                } else {
+                    const amount = d.durationHours === "1" ? "49" : "490";
+                    const msg = encodeURIComponent(`Сәлеметсіз бе! SK-Joba-ға жарнама бердім. Төлем жасалды (${amount}₸). Телефон: ${d.phone}`);
+                    
+                    if(confirm(`Өтінім қабылданды! Жариялау ақысы: ${amount}₸.\n\nҚазір Kaspi-ге өтіп төлем жасайсыз ба?`)) {
+                        window.location.href = `https://kaspi.kz/pay/Transfer?phone=${KASPI_PHONE}`;
+                        setTimeout(() => {
+                            window.location.href = `https://wa.me/${KASPI_PHONE}?text=${msg}`;
+                        }, 3000);
+                    }
+                }
                 loadMarkers();
             });
         }, () => alert("GPS қосыңыз!"));
@@ -114,18 +127,15 @@ function saveItem(type) {
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
-        allData.workers.forEach(w => { if(w.job.toLowerCase().includes(term) || term === "қызмет") addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'); });
-        allData.goods.forEach(g => { if(g.product_name.toLowerCase().includes(term) || term === "тауар") addM(g.lat, g.lon, `📦 ${g.product_name}<br>Бағасы: ${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'); });
-        allData.orders.forEach(o => { if(o.description.toLowerCase().includes(term) || term === "тапсырыс") addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'); });
+        allData.workers.forEach(w => { if(w.job.toLowerCase().includes(term)) addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'); });
+        allData.goods.forEach(g => { if(g.product_name.toLowerCase().includes(term)) addM(g.lat, g.lon, `📦 ${g.product_name}<br>Бағасы: ${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'); });
+        allData.orders.forEach(o => { if(o.description.toLowerCase().includes(term)) addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'); });
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
         const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
-        
-        // ӨШІРУ: Тек иесіне көрінеді
         const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;margin-top:5px;width:100%;cursor:pointer;">Өшіру ❌</button>` : "";
-        
         m.bindPopup(txt + delBtn);
         m.bindTooltip(mini.substring(0,15), {permanent: true, direction: 'top', offset: [0, -10]});
         markersGroup.addLayer(m);
@@ -137,7 +147,6 @@ function saveItem(type) {
         .then(() => admin ? loadAdmin() : loadMarkers());
     }
 
-    // АДМИН ПАНЕЛЬ (#admin777)
     window.onhashchange = () => {
         if(location.hash === "#admin777") {
             const p = prompt("Құпия сөз:");
@@ -147,9 +156,9 @@ function saveItem(type) {
 
     function loadAdmin() {
         fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Ақпарат</th><th>Жариялау ақысы</th><th>Әрекет</th></tr>`;
+            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Инфо</th><th>Ақысы</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
-                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅ Қос</button><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`;
+                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅</button><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`;
             });
             document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Жаңа өтінімдер жоқ.";
         });
