@@ -75,8 +75,9 @@ app.post('/admin/login', (req, res) => {
 });
 
 app.get('/admin/pending', async (req, res) => {
-    const w = await pool.query('SELECT id, name, job as info, \'worker\' as type FROM workers WHERE is_active = FALSE');
-    const g = await pool.query('SELECT id, seller_name as name, product_name as info, \'good\' as type FROM goods WHERE is_active = FALSE');
+    // Админ бәрін көруі үшін толық бағаналарды аламыз
+    const w = await pool.query('SELECT *, \'worker\' as type FROM workers WHERE is_active = FALSE');
+    const g = await pool.query('SELECT *, \'good\' as type FROM goods WHERE is_active = FALSE');
     res.json([...w.rows, ...g.rows]);
 });
 
