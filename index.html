@@ -3,29 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba Marketplace</title>
-    
+    <title>SK-Marketplace: Бағалар 49/490</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 50vh; width: 100%; border-bottom: 3px solid #007bff; }
-        .filter-bar { padding: 10px; background: white; display: flex; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #map { height: 45vh; width: 100%; border-bottom: 3px solid #007bff; }
+        .filter-bar { padding: 10px; background: white; display: flex; gap: 10px; position: sticky; top: 0; z-index: 1000; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         input, textarea, select, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
-        button { cursor: pointer; font-weight: bold; border: none; color: white; transition: 0.3s; }
-        
-        .kaspi-btn { display: block; background: #f00; color: #fff; text-align: center; padding: 10px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; }
-        
-        .marker-label {
-            background: white; border: 1px solid #007bff; border-radius: 4px;
-            padding: 2px 6px; font-weight: bold; font-size: 11px; color: #333;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap;
-        }
-
+        button { cursor: pointer; font-weight: bold; border: none; color: white; background: #007bff; }
+        .kaspi-box { background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px dashed #f00; text-align: center; }
+        .kaspi-btn { display: block; background: #f00; color: #fff; text-align: center; padding: 10px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 5px; }
+        .marker-label { background: white; border: 1px solid #007bff; border-radius: 4px; padding: 2px 6px; font-weight: bold; font-size: 11px; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10001; padding:20px; overflow-y:auto; }
-        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .admin-table { width: 100%; border-collapse: collapse; }
+        .admin-table td, .admin-table th { border: 1px solid #ddd; padding: 10px; }
     </style>
 </head>
 <body>
@@ -48,28 +41,35 @@
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық">
         <input id="w_phone" placeholder="+77XXXXXXXXX">
-        <select id="w_dur">
-            <option value="1">1 сағат (500тг)</option>
-            <option value="24">1 тәулік (2000тг)</option>
+        <select id="w_dur" onchange="updatePrice('worker')">
+            <option value="1">1 сағат (49 тг)</option>
+            <option value="24">1 тәулік (490 тг)</option>
         </select>
-        <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px dashed #f00;">
-            <p style="font-size: 12px; margin: 0; color: #d00;"><b>Төлем қажет:</b></p>
-            <a href="https://kaspi.kz/pay/_/transfer?number=77017398309" target="_blank" class="kaspi-btn">Kaspi-мен төлеу 500₸</a>
+        <div class="kaspi-box">
+            <p style="font-size: 11px; margin: 0;">Төлем жасап, "Тіркелу" басыңыз:</p>
+            <a id="w_kaspi_link" href="https://kaspi.kz/pay/_/transfer?number=77XXXXXXXXX&amount=49" target="_blank" class="kaspi-btn">Kaspi-мен төлеу 49₸</a>
         </div>
-        <button style="background: #007bff;" onclick="saveWorker()">Төледім және Тіркелу</button>
+        <button onclick="saveWorker()" style="margin-top:10px;">Төледім және Тіркелу</button>
     </div>
 
     <div class="card" style="border-top: 5px solid #ffc107;">
         <h4>📦 Тауар сату</h4>
         <input id="g_name" placeholder="Сатушы аты">
         <input id="g_prod" placeholder="Тауар аты">
-        <input id="g_price" placeholder="Бағасы">
+        <input id="g_price" placeholder="Бағасы (тг)">
         <input id="g_phone" placeholder="+77XXXXXXXXX">
-        <button style="background: #ffc107; color: black;" onclick="saveGoods()">Тауарды қосу</button>
+        <select id="g_dur" onchange="updatePrice('good')">
+            <option value="1">1 сағат (49 тг)</option>
+            <option value="24">1 тәулік (490 тг)</option>
+        </select>
+        <div class="kaspi-box">
+            <a id="g_kaspi_link" href="https://kaspi.kz/pay/_/transfer?number=77XXXXXXXXX&amount=49" target="_blank" class="kaspi-btn" style="background:#ffc107; color:black;">Kaspi-мен төлеу 49₸</a>
+        </div>
+        <button onclick="saveGoods()" style="background:#ffc107; color:black; margin-top:10px;">Тауарды қосу</button>
     </div>
 
     <div class="card" style="border-top: 5px solid #dc3545;">
-        <h4>📋 Тапсырыс беру</h4>
+        <h4>📋 Тапсырыс (Тегін)</h4>
         <input id="c_name" placeholder="Атыңыз">
         <textarea id="c_desc" placeholder="Не қажет?"></textarea>
         <input id="c_phone" placeholder="+77XXXXXXXXX">
@@ -78,8 +78,8 @@
 </div>
 
 <div id="admin-modal">
-    <button onclick="closeAdmin()" style="background:#333; width:auto; float:right;">❌ Жабу</button>
-    <h2>Админ: Төлемді тексеру</h2>
+    <button onclick="closeAdmin()" style="background:#333; float:right;">❌ Жабу</button>
+    <h2>Төлемді растау</h2>
     <div id="admin-table-container"></div>
 </div>
 
@@ -88,19 +88,21 @@
 
 <script>
     const API = "https://sk-joba.onrender.com";
+    const myKaspiPhone = "77XXXXXXXXX"; // ОСЫ ЖЕРГЕ ӨЗ НӨМІРІҢІЗДІ ЖАЗЫҢЫЗ
     const myToken = localStorage.getItem('device_token') || Math.random().toString(36).substring(2);
     localStorage.setItem('device_token', myToken);
 
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true, nearbyDistance: 25 });
+    const oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true });
 
-    function getIcon(color) {
-        return L.icon({
-            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-        });
+    // БАҒАНЫ ЖАҢАРТУ ЛОГИКАСЫ
+    function updatePrice(type) {
+        const dur = document.getElementById(type === 'worker' ? 'w_dur' : 'g_dur').value;
+        const price = dur === "1" ? 49 : 490;
+        const linkEl = document.getElementById(type === 'worker' ? 'w_kaspi_link' : 'g_kaspi_link');
+        linkEl.innerText = `Kaspi-мен төлеу ${price}₸`;
+        linkEl.href = `https://kaspi.kz/pay/_/transfer?number=${myKaspiPhone}&amount=${price}`;
     }
 
     function loadAll() {
@@ -117,15 +119,20 @@
                 data.goods.forEach(g => { if(g.product_name.toLowerCase().includes(searchF)) addMarker(g, 'good', 'yellow', g.product_name); });
             }
             if(typeF === 'all' || typeF === 'order') {
-                data.orders.forEach(o => { if(o.description.toLowerCase().includes(searchF)) addMarker(o, 'order', 'red', o.description.substring(0,15)); });
+                data.orders.forEach(o => { if(o.description.toLowerCase().includes(searchF)) addMarker(o, 'order', 'red', o.description.substring(0,12)); });
             }
         });
     }
 
     function addMarker(item, type, color, miniText) {
-        const marker = L.marker([item.lat, item.lon], { icon: getIcon(color) }).addTo(map);
+        const marker = L.marker([item.lat, item.lon], { icon: L.icon({
+            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41]
+        }) }).addTo(map);
+        
         let content = `<b>${item.name || item.seller_name || item.client_name}</b><br>${item.job || item.product_name || item.description}<br><a href="tel:${item.phone}">${item.phone}</a>`;
-        if(item.device_token === myToken) content += `<br><button onclick="delItem('${type}', ${item.id})" style="background:red; padding:4px; font-size:10px; margin-top:5px;">Өшіру</button>`;
+        if(item.device_token === myToken) content += `<br><button onclick="delItem('${type}', ${item.id})" style="background:red; font-size:10px; padding:3px; color:white; border:none; margin-top:5px;">Өшіру</button>`;
         
         marker.bindPopup(content).bindTooltip(miniText, { permanent: true, direction: 'top', className: 'marker-label' });
         oms.addMarker(marker);
@@ -136,14 +143,14 @@
     function saveWorker() {
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('w_name'), job: v('w_job'), phone: v('w_phone'), durationHours: v('w_dur'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Төлем тексеруге жіберілді. Расталған соң картада пайда болады."));
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Төлем тексерілуде..."));
         });
     }
 
     function saveGoods() {
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар растауға жіберілді."));
+            const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), durationHours: v('g_dur'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар тексерілуде..."));
         });
     }
 
@@ -155,27 +162,24 @@
     }
 
     function delItem(type, id) {
-        if(confirm("Өшіресіз бе?")) {
-            fetch(`${API}/delete/${type}/${id}`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ device_token: myToken }) }).then(() => loadAll());
-        }
+        if(confirm("Өшіресіз бе?")) fetch(`${API}/delete/${type}/${id}`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ device_token: myToken }) }).then(() => loadAll());
     }
 
-    // Админ логикасы
     window.onhashchange = () => {
         if(location.hash === "#admin777") {
-            const p = prompt("Password:");
+            const p = prompt("Pass:");
             if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadPending(); }
         }
     };
 
     function loadPending() {
         fetch(`${API}/admin/pending`).then(res => res.json()).then(list => {
-            let html = `<table class="admin-table"><tr><th>Түрі</th><th>Аты</th><th>Ақпарат</th><th>Телефон</th><th>Әрекет</th></tr>`;
+            let html = `<table class="admin-table"><tr><th>Түрі</th><th>Аты</th><th>Ақпарат</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
-                html += `<tr><td>${i.type}</td><td>${i.name}</td><td>${i.info}</td><td>${i.phone}</td>
-                <td><button onclick="activate('${i.id}', '${i.type}')" style="background:green; width:auto;">✅ Төлемді растау</button></td></tr>`;
+                html += `<tr><td>${i.type}</td><td>${i.name}</td><td>${i.info}</td>
+                <td><button onclick="activate('${i.id}', '${i.type}')" style="background:green;">✅ Растау</button></td></tr>`;
             });
-            document.getElementById('admin-table-container').innerHTML = list.length ? html + "</table>" : "<h4>Жаңа өтінімдер жоқ</h4>";
+            document.getElementById('admin-table-container').innerHTML = list.length ? html + "</table>" : "<h4>Бос</h4>";
         });
     }
 
