@@ -8,53 +8,49 @@
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
         #map { height: 50vh; width: 100%; }
-        .forms-container { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; }
-        .card { background: white; padding: 10px; border-radius: 8px; flex: 1; min-width: 250px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, button, select { width: 100%; margin: 5px 0; padding: 8px; border-radius: 4px; border: 1px solid #ddd; }
+        .card { background: white; padding: 15px; border-radius: 8px; margin: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, button, select, textarea { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; }
         .btn-w { background: #007bff; color: white; }
         .btn-c { background: #dc3545; color: white; }
-        .btn-g { background: #ffc107; color: black; }
-        #admin-panel { background: #343a40; color: white; padding: 15px; display: none; }
+        .btn-g { background: #ffc107; }
+        #admin-panel { display: none; background: #333; color: white; padding: 20px; position: fixed; top: 0; width: 100%; z-index: 9999; height: 100%; overflow-y: auto; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
+<button onclick="showAdmin()" style="width: auto; position: absolute; top: 10px; right: 10px; z-index: 1000;">Админ</button>
 
-<div class="forms-container">
-    <div class="card">
+<div style="display: flex; flex-wrap: wrap;">
+    <div class="card" style="flex: 1;">
         <h4>👷 Орындаушы</h4>
         <input type="text" id="w_name" placeholder="Атыңыз">
         <input type="text" id="w_job" placeholder="Мамандық">
         <input type="tel" id="w_phone" placeholder="Телефон" value="+7">
         <select id="w_dur"><option value="1">1 сағат (500тг)</option><option value="24">1 тәулік (2000тг)</option></select>
-        <button class="btn-w" onclick="saveWorker()">Төлеу және Тіркелу</button>
+        <button class="btn-w" onclick="saveWorker()">Тіркелу</button>
     </div>
-
-    <div class="card">
+    <div class="card" style="flex: 1;">
         <h4>📦 Тауар Сату</h4>
-        <input type="text" id="g_name" placeholder="Сатушы аты">
+        <input type="text" id="g_name" placeholder="Атыңыз">
         <input type="text" id="g_prod" placeholder="Тауар аты">
         <input type="text" id="g_price" placeholder="Бағасы">
         <input type="tel" id="g_phone" placeholder="Телефон" value="+7">
-        <button class="btn-g" onclick="saveGoods()">Тауарды қосу</button>
+        <button class="btn-g" onclick="saveGoods()">Тауар қосу</button>
     </div>
-
-    <div class="card">
+    <div class="card" style="flex: 1;">
         <h4>📋 Тапсырыс беру</h4>
         <input type="text" id="c_name" placeholder="Атыңыз">
         <textarea id="c_desc" placeholder="Не істеу керек?"></textarea>
         <input type="tel" id="c_phone" placeholder="Телефон" value="+7">
-        <button class="btn-c" onclick="saveOrder()">Тапсырыс қалдыру</button>
+        <button class="btn-c" onclick="saveOrder()">Тапсырыс беру</button>
     </div>
 </div>
 
-<button onclick="document.getElementById('admin-panel').style.display='block'">Админ</button>
-
 <div id="admin-panel">
-    <h3>Төлемді растау (Админ)</h3>
+    <h2>Күтіп тұрған өтінімдер</h2>
     <div id="pending-list"></div>
-    <button onclick="this.parentElement.style.display='none'">Жабу</button>
+    <button onclick="document.getElementById('admin-panel').style.display='none'">Жабу</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -69,62 +65,82 @@
         fetch(`${API}/get-all`).then(res => res.json()).then(data => {
             map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
             
-            // Мамандар (Көк)
-            data.workers.forEach(w => L.marker([w.lat, w.lon]).addTo(map).bindPopup(`<b>Маман: ${w.name}</b><br>${w.job}<br>${w.phone}`));
-            
-            // Тауарлар (Сары)
+            data.workers.forEach(w => {
+                L.marker([w.lat, w.lon]).addTo(map)
+                 .bindPopup(`<b>${w.name}</b><br>${w.job}<br>${w.phone}`)
+                 .bindTooltip(w.job, {permanent: true, direction: 'top'}).openTooltip();
+            });
+
             data.goods.forEach(g => {
                 const yellowIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png', iconSize: [25, 41] });
-                L.marker([g.lat, g.lon], {icon: yellowIcon}).addTo(map).bindPopup(`<b>ТАУАР: ${g.product_name}</b><br>Бағасы: ${g.price}<br>Сатушы: ${g.seller_name}<br>${g.phone}`);
+                L.marker([g.lat, g.lon], {icon: yellowIcon}).addTo(map)
+                 .bindPopup(`<b>${g.product_name}</b><br>${g.price} тг<br>${g.phone}`)
+                 .bindTooltip(g.product_name, {permanent: true, direction: 'top'}).openTooltip();
             });
 
-            // Тапсырыстар (Қызыл)
             data.orders.forEach(o => {
                 const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
-                let html = `<b>ТАПСЫРЫС: ${o.description}</b><br>${o.phone}`;
+                let html = `<b>Тапсырыс: ${o.description}</b><br>${o.phone}`;
                 if(o.device_token === myToken) html += `<br><button onclick="deleteOrder(${o.id})">Өшіру</button>`;
-                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map).bindPopup(html);
+                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map)
+                 .bindPopup(html)
+                 .bindTooltip("Тапсырыс", {permanent: true, direction: 'top'}).openTooltip();
             });
-        });
-        loadPending();
-    }
-
-    // Админ функциясы
-    function loadPending() {
-        fetch(`${API}/admin/pending-workers`).then(res => res.json()).then(list => {
-            let html = "";
-            list.forEach(w => {
-                html += `<div>${w.name} - ${w.job} <button onclick="activateWorker(${w.id})">Растау (Төледі)</button></div>`;
-            });
-            document.getElementById('pending-list').innerHTML = html || "Күтіп тұрғандар жоқ";
         });
     }
 
-    function activateWorker(id) {
-        const secret = prompt("Админ пароль:");
-        fetch(`${API}/admin/activate-worker`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id, secret })
-        }).then(() => loadAll());
+    // МАҢЫЗДЫ: Функциялар атауын тексеріңіз!
+    function saveOrder() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const body = { name: v('c_name'), description: v('c_desc'), phone: v('c_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
+        });
     }
 
     function saveWorker() {
-        alert("Төлемді жасаңыз (Kaspi +7701...). Расталған соң картаға шығасыз.");
+        alert("Төлем жасаған соң админ растауын күтіңіз.");
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: getValue('w_name'), phone: getValue('w_phone'), job: getValue('w_job'), durationHours: getValue('w_dur'), lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Күту тізіміне қосылдыңыз."));
+            const body = { name: v('w_name'), job: v('w_job'), phone: v('w_phone'), durationHours: v('w_dur'), lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Өтінім жіберілді."));
         });
     }
 
     function saveGoods() {
+        alert("Тауар расталған соң картада көрінеді.");
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: getValue('g_name'), product: getValue('g_prod'), price: getValue('g_price'), phone: getValue('g_phone'), lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тауар қосылды!"); loadAll(); });
+            const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар жіберілді."));
         });
     }
 
-    function getValue(id) { return document.getElementById(id).value; }
+    function showAdmin() {
+        document.getElementById('admin-panel').style.display = 'block';
+        fetch(`${API}/admin/pending`).then(res => res.json()).then(list => {
+            let html = "";
+            list.forEach(item => {
+                html += `<div style="border-bottom:1px solid #555; padding:10px;">
+                    ${item.name} - ${item.info} (${item.type}) 
+                    <button onclick="activate('${item.id}', '${item.type}')">Растау</button>
+                </div>`;
+            });
+            document.getElementById('pending-list').innerHTML = html || "Жаңа өтінімдер жоқ";
+        });
+    }
+
+    function activate(id, type) {
+        const secret = prompt("Админ пароль:");
+        fetch(`${API}/admin/activate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, type, secret })
+        }).then(() => showAdmin());
+    }
+
+    function v(id) { return document.getElementById(id).value; }
+    function deleteOrder(id) {
+        fetch(`${API}/delete-order/${id}`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ device_token: myToken }) }).then(() => loadAll());
+    }
+
     loadAll();
 </script>
 </body>
