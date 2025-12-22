@@ -75,10 +75,11 @@ app.post('/admin/login', (req, res) => {
 });
 
 app.get('/admin/pending', async (req, res) => {
-    // Админ бәрін көруі үшін толық бағаналарды аламыз
-    const w = await pool.query('SELECT *, \'worker\' as type FROM workers WHERE is_active = FALSE');
-    const g = await pool.query('SELECT *, \'good\' as type FROM goods WHERE is_active = FALSE');
-    res.json([...w.rows, ...g.rows]);
+    try {
+        const w = await pool.query('SELECT id, name, job as info, phone, \'worker\' as type FROM workers WHERE is_active = FALSE');
+        const g = await pool.query('SELECT id, seller_name as name, product_name as info, phone, \'good\' as type FROM goods WHERE is_active = FALSE');
+        res.json([...w.rows, ...g.rows]);
+    } catch (err) { res.status(500).send(err.message); }
 });
 
 app.post('/admin/activate', async (req, res) => {
