@@ -3,85 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Жұмыс Картасы</title>
+    <title>Жұмыс және Тапсырыс Картасы</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        #map { flex-grow: 1; width: 100%; }
-        .form-container { padding: 15px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; }
-        input, button { margin: 5px 0; padding: 12px; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
-        button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:hover { background: #218838; }
+        body { margin: 0; font-family: sans-serif; }
+        #map { height: 70vh; width: 100%; }
+        .controls { padding: 15px; background: #eee; display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-box { border: 1px solid #ccc; padding: 10px; background: white; border-radius: 8px; flex: 1; min-width: 300px; }
+        input, button, textarea { width: 100%; margin: 5px 0; padding: 8px; box-sizing: border-box; }
+        .btn-worker { background: #28a745; color: white; border: none; }
+        .btn-client { background: #dc3545; color: white; border: none; }
     </style>
 </head>
 <body>
 
-<div class="form-container">
-    <form id="userForm">
-        <input type="text" id="name" placeholder="Аты-жөніңіз" minlength="2" required>        
-        <input type="tel" id="phone" name="phone" value="+7" pattern="\+7[0-9]{10}" placeholder="+77071112233" required title="Телефон нөмірі +7-ден басталып, жалпы 12 символ болуы керек (мысалы: +77071112233)">        
-        <input type="text" id="job" placeholder="Мамандығыңыз (мысалы: Жүргізуші)" minlength="3" required>        
-        <button type="submit">Жұмысқа шығу</button>
-    </form>
+<div class="controls">
+    <div class="form-box">
+        <h4>Мен Орындаушымын</h4>
+        <input type="text" id="w_name" placeholder="Атыңыз">
+        <input type="tel" id="w_phone" placeholder="+7701..." value="+7">
+        <input type="text" id="w_job" placeholder="Мамандық (мысалы: Курьер)">
+        <button class="btn-worker" onclick="saveWorker()">Картаға шығу</button>
+    </div>
+
+    <div class="form-box">
+        <h4>Маған маман керек (Тапсырыс)</h4>
+        <input type="text" id="c_name" placeholder="Атыңыз">
+        <input type="tel" id="c_phone" placeholder="+7701..." value="+7">
+        <textarea id="c_desc" placeholder="Не істеу керек?"></textarea>
+        <button class="btn-client" onclick="saveOrder()">Тапсырыс қалдыру</button>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-// Картаны іске қосу
-const map = L.map('map').setView([43.2389, 76.8897], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const map = L.map('map').setView([43.2389, 76.8897], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 1. БАЗАДАН ДЕРЕКТЕРДІ АЛЫП, КАРТАҒА ШЫҒАРУ ФУНКЦИЯСЫ
-function loadMarkers() {
-    fetch('https://sk-joba.onrender.com/get-locations')
-        .then(res => res.json())
-        .then(users => {
-            users.forEach(user => {
-                // Әр қолданушыға маркер қою
-                const marker = L.marker([user.lat, user.lon]).addTo(map);
-                
-                // Маркерді басқанда ақпарат шығады
-                marker.bindPopup(`
-                    <b>${user.name}</b><br>
-                    ${user.job}<br>
-                    <a href="tel:${user.phone}">${user.phone}</a>
-                `);
+    const API = "https://sk-joba.onrender.com";
+
+    function loadAll() {
+        fetch(`${API}/get-all`)
+            .then(res => res.json())
+            .then(data => {
+                map.eachLayer(layer => { if(layer instanceof L.Marker) map.removeLayer(layer); });
+
+                // Мамандар (Көк маркер)
+                data.workers.forEach(w => {
+                    L.marker([w.lat, w.lon]).addTo(map)
+                     .bindPopup(`<b>Маман: ${w.name}</b><br>${w.job}<br><a href="tel:${w.phone}">${w.phone}</a>`);
+                });
+
+                // Тапсырыстар (Қызыл маркер)
+                data.orders.forEach(o => {
+                    const redIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+                    L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map)
+                     .bindPopup(`<b>ТАПСЫРЫС: ${o.description}</b><br>Клиент: ${o.client_name}<br><a href="tel:${o.phone}">${o.phone}</a><br><button onclick="deleteOrder(${o.id})">Өшіру</button>`);
+                });
             });
-        })
-        .catch(err => console.error("Маркерлерді жүктеу қатесі:", err));
-}
+    }
 
-// Сайт ашылғанда маркерлерді бірден жүктеу
-loadMarkers();
-
-// 2. ФОРМАНЫ ЖІБЕРУ БӨЛІМІ (сізде бар, бірақ соңына loadMarkers қосамыз)
-document.getElementById('userForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('name').value;
-    const phone = document.getElementById('phone').value;
-    const job = document.getElementById('job').value;
-
-    navigator.geolocation.getCurrentPosition(position => {
-        const data = {
-            name, phone, job,
-            lat: position.coords.latitude,
-            lon: position.coords.longitude
-        };
-
-        fetch('https://sk-joba.onrender.com/save-location', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(() => {
-            alert("Сәтті сақталды!");
-            loadMarkers(); // Жаңа маркерді бірден картаға қосу
+    function saveWorker() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const body = { name: document.getElementById('w_name').value, phone: document.getElementById('w_phone').value, job: document.getElementById('w_job').value, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тіркелдіңіз!"); loadAll(); });
         });
-    });
-});
+    }
+
+    function saveOrder() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const body = { name: document.getElementById('c_name').value, description: document.getElementById('c_desc').value, phone: document.getElementById('c_phone').value, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
+        });
+    }
+
+    function deleteOrder(id) {
+        if(confirm("Тапсырысты өшіресіз бе?")) {
+            fetch(`${API}/delete-order/${id}`, { method: 'DELETE' }).then(() => loadAll());
+        }
+    }
+
+    loadAll();
 </script>
 </body>
 </html>
