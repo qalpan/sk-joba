@@ -1,80 +1,50 @@
 const express = require('express');
 const { Pool } = require('pg');
-const cors = require('cors'); // CORS пакеті міндетті түрде болуы керек
-
+const cors = require('cors');
 const app = express();
 
-// CORS-ты қатаң түрде баптау
-app.use(cors({
-    origin: '*', // Барлық сайттарға рұқсат (GitHub Pages үшін маңызды)
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type']
-}));
-
+app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({ 
-    connectionString: process.env.DATABASE_URL, 
-    ssl: { rejectUnauthorized: false } 
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ТЕКСЕРУ (Бұл бөлім базаның дайын екеніне көз жеткізеді)
+// БАЗАНЫ ТЕКСЕРУ
 async function initDB() {
     try {
-        // DROP TABLE жолын алып тастадық, енді деректер өшпейді
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS workers (
-                id SERIAL PRIMARY KEY, 
-                name TEXT, 
-                phone TEXT, 
-                job TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, 
-                device_token TEXT, 
-                expires_at TIMESTAMP, 
-                fee_amount TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS goods (
-                id SERIAL PRIMARY KEY, 
-                seller_name TEXT, 
-                product_name TEXT, 
-                price TEXT, 
-                phone TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, 
-                device_token TEXT, 
-                expires_at TIMESTAMP, 
-                fee_amount TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS orders (
-                id SERIAL PRIMARY KEY, 
-                client_name TEXT, 
-                description TEXT, 
-                phone TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                device_token TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+            CREATE TABLE IF NOT EXISTS workers (id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, fee_amount TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS goods (id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, fee_amount TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS orders (id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         `);
-        console.log("Database tables checked and ready.");
-    } catch (err) {
-        console.error("DB Init Error:", err);
-    }
+        console.log("DB Ready");
+    } catch (err) { console.error(err); }
 }
 initDB();
 
-// МАРШРУТТАР (404 болмауы үшін аттарын тексеріңіз)
+// --- НЕГІЗГІ МАРШРУТТАР ---
+
+app.get('/get-all', async (req, res) => {
+    try {
+        await pool.query("DELETE FROM workers WHERE expires_at < NOW()");
+        await pool.query("DELETE FROM goods WHERE expires_at < NOW()");
+        await pool.query("DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'");
+        
+        const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
+        const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
+        const o = await pool.query('SELECT * FROM orders');
+        res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
+    } catch (err) { res.status(500).json({error: err.message}); }
+});
+
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const fee = durationHours === "1" ? "49₸" : "490₸";
     const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
     await pool.query('INSERT INTO workers (name, phone, job, lat, lon, expires_at, device_token, fee_amount) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [name, phone, job, lat, lon, exp, device_token, fee]);
-    res.status(200).json({success: true});
+    res.json({success: true});
 });
 
 app.post('/save-goods', async (req, res) => {
@@ -82,26 +52,39 @@ app.post('/save-goods', async (req, res) => {
     const fee = durationHours === "1" ? "49₸" : "490₸";
     const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
     await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token, fee_amount) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [name, product, price, phone, lat, lon, exp, device_token, fee]);
-    res.status(200).json({success: true});
+    res.json({success: true});
 });
 
 app.post('/save-order', async (req, res) => {
     const { name, description, phone, lat, lon, device_token } = req.body;
     await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, description, phone, lat, lon, device_token]);
-    res.status(200).json({success: true});
+    res.json({success: true});
 });
 
-app.get('/get-all', async (req, res) => {
+// --- АДМИН МАРШРУТТАРЫ (ОСЫ ЖЕРГЕ НАЗАР АУДАРЫҢЫЗ) ---
+
+app.get('/admin/pending', async (req, res) => {
     try {
-        const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
-        const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
-        const o = await pool.query('SELECT * FROM orders');
-        res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
-    } catch (err) {
-        res.status(500).json({error: err.message});
-    }
+        const w = await pool.query(`SELECT id, job as info, phone, 'worker' as type, fee_amount as fee FROM workers WHERE is_active = FALSE`);
+        const g = await pool.query(`SELECT id, product_name as info, phone, 'good' as type, fee_amount as fee FROM goods WHERE is_active = FALSE`);
+        res.json([...w.rows, ...g.rows]);
+    } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// Қалған Админ маршруттарын да осылай res.json() арқылы аяқтаңыз...
+app.post('/admin/activate', async (req, res) => {
+    const { id, type } = req.body;
+    const table = type === 'worker' ? 'workers' : 'goods';
+    await pool.query(`UPDATE ${table} SET is_active = TRUE WHERE id = $1`, [id]);
+    res.json({ success: true });
+});
 
-app.listen(process.env.PORT || 10000, () => console.log("Server running"));
+app.post('/delete-item', async (req, res) => {
+    const { id, type, token } = req.body;
+    const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
+    const query = token === 'ADMIN' ? `DELETE FROM ${table} WHERE id = $1` : `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
+    const params = token === 'ADMIN' ? [parseInt(id)] : [parseInt(id), token];
+    await pool.query(query, params);
+    res.json({success:true});
+});
+
+app.listen(process.env.PORT || 10000, () => console.log("Server running on port 10000"));
