@@ -11,7 +11,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ЖАҢАРТУ (Барлық кестеге device_token қосылды)
+// БАЗАНЫ ЖАҢАРТУ (Барлық кестеге device_token және is_active қосылған)
 async function initDatabase() {
     try {
         await pool.query('DROP TABLE IF EXISTS workers, orders, goods CASCADE;');
@@ -31,7 +31,7 @@ async function initDatabase() {
             lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
             is_active BOOLEAN DEFAULT FALSE, device_token TEXT);`);
             
-        console.log("База толық жаңартылды.");
+        console.log("База сәтті жаңартылды.");
     } catch (err) { console.error(err); }
 }
 initDatabase();
@@ -59,27 +59,19 @@ app.post('/save-order', async (req, res) => {
     res.json({ success: true });
 });
 
-// --- ӨШІРУ API (device_token арқылы) ---
-app.delete('/delete/:type/:id', async (req, res) => {
-    const { type, id } = req.params;
-    const { device_token } = req.body;
-    const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
-    res.json({ success: result.rowCount > 0 });
+// --- ЖАЛПЫ ДЕРЕКТЕРДІ АЛУ ---
+app.get('/get-all', async (req, res) => {
+    const workers = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
+    const goods = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
+    const orders = await pool.query('SELECT * FROM orders');
+    res.json({ workers: workers.rows, goods: goods.rows, orders: orders.rows });
 });
 
-// --- АДМИН API ---
-app.post('/admin/login', (req, res) => {
-    if(req.body.password === "admin777") res.json({ success: true });
-    else res.status(403).json({ success: false });
-});
-
+// --- АДМИН ПАНЕЛЬ API ---
 app.get('/admin/pending', async (req, res) => {
-    try {
-        const w = await pool.query('SELECT id, name, job as info, phone, \'worker\' as type FROM workers WHERE is_active = FALSE');
-        const g = await pool.query('SELECT id, seller_name as name, product_name as info, phone, \'good\' as type FROM goods WHERE is_active = FALSE');
-        res.json([...w.rows, ...g.rows]);
-    } catch (err) { res.status(500).send(err.message); }
+    const w = await pool.query('SELECT id, name, job as info, phone, \'worker\' as type FROM workers WHERE is_active = FALSE');
+    const g = await pool.query('SELECT id, seller_name as name, product_name as info, phone, \'good\' as type FROM goods WHERE is_active = FALSE');
+    res.json([...w.rows, ...g.rows]);
 });
 
 app.post('/admin/activate', async (req, res) => {
@@ -89,12 +81,14 @@ app.post('/admin/activate', async (req, res) => {
     res.json({ success: true });
 });
 
-app.get('/get-all', async (req, res) => {
-    const workers = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
-    const orders = await pool.query('SELECT * FROM orders');
-    const goods = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
-    res.json({ workers: workers.rows, orders: orders.rows, goods: goods.rows });
+// --- ӨШІРУ API ---
+app.delete('/delete/:type/:id', async (req, res) => {
+    const { type, id } = req.params;
+    const { device_token } = req.body;
+    const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
+    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
+    res.json({ success: result.rowCount > 0 });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log("Сервер қосылды"));
+app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды`));
