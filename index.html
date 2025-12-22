@@ -3,18 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba Marketplace</title>
+    <title>SK-Joba | Нақты Уақыт</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
         #map { height: 55vh; width: 100%; border-bottom: 3px solid #007bff; }
-        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .leaflet-tooltip { background: white !important; border: 2px solid #007bff !important; color: black !important; font-weight: bold !important; padding: 2px 5px; border-radius: 4px; font-size: 13px; }
+        
+        /* MINI АҚПАРАТ СТИЛІ (ҚЫСҚА) */
+        .leaflet-tooltip { 
+            background: white !important; 
+            border: 2px solid #007bff !important; 
+            font-weight: bold !important; 
+            padding: 2px 4px !important; 
+            font-size: 11px !important; 
+            white-space: nowrap;
+        }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
     </style>
 </head>
@@ -26,8 +35,8 @@
     <div class="card">
         <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық (Мәтін+Сан)">
-        <input id="w_phone" placeholder="Телефон (11-12 сан)">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="Телефон (8707...)">
         <select id="w_dur"><option value="1">1 сағат</option><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
     </div>
@@ -35,17 +44,16 @@
     <div class="card">
         <h4>📦 Тауар</h4>
         <input id="g_name" placeholder="Атыңыз">
-        <input id="g_prod" placeholder="Тауар атауы (Мәтін+Сан)">
+        <input id="g_prod" placeholder="Тауар атауы">
         <input id="g_price" placeholder="Бағасы (Тек сан)">
         <input id="g_phone" placeholder="Телефон">
-        <select id="g_dur"><option value="1">1 сағат</option><option value="24" selected>1 тәулік</option></select>
         <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Қосу</button>
     </div>
 
     <div class="card">
         <h4>📋 Тапсырыс</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Сипаттама (Мәтін+Сан)"></textarea>
+        <textarea id="c_desc" placeholder="Сипаттама"></textarea>
         <input id="c_phone" placeholder="Телефон">
         <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
     </div>
@@ -53,7 +61,6 @@
 
 <div id="admin-modal">
     <button onclick="window.location.hash=''" style="float:right;">❌ Жабу</button>
-    <h2>Админ панель</h2>
     <div id="admin-list"></div>
 </div>
 
@@ -74,70 +81,47 @@
     function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
-        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
+        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:24}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        // ТЕЛЕФОН ТЕКСЕРУ (11-12)
         const pClean = d.phone.replace(/[\+\s]/g, '');
-        if(pClean.length < 11 || pClean.length > 12 || isNaN(pClean)) return alert("Телефон нөмірі қате!");
-
-        // БАҒА ТЕКСЕРУ
-        if(type==='good' && (isNaN(d.price.replace(/\s/g, '')) || d.price === "")) return alert("Бағаға тек сан жазыңыз!");
-
-        // БОС ОРЫН
-        if(!d.name || (type==='worker' && !d.job) || (type==='good' && !d.product) || (type==='order' && !d.description)) return alert("Барлық жерді толтырыңыз!");
+        if(pClean.length < 11 || pClean.length > 12 || isNaN(pClean)) return alert("Телефон қате!");
+        if(type==='good' && isNaN(d.price.replace(/\s/g, ''))) return alert("Бағаға тек сан жазыңыз!");
 
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
-            .then(() => location.reload());
-        }, () => alert("Геолокация қажет!"));
+            .then(() => loadMarkers()); // Тікелей жаңарту
+        });
     }
 
     function loadMarkers() {
         fetch(API+'/get-all').then(r => r.json()).then(data => {
             markersGroup.clearLayers();
-            // Қызмет - Мамандығы (job)
-            data.workers.forEach(w => addM(w.lat, w.lon, `👷 <b>${w.job}</b><br>${w.name}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
-            // Тауар - Атауы (product_name)
-            data.goods.forEach(g => addM(g.lat, g.lon, `📦 <b>${g.product_name}</b><br>${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'));
-            // Тапсырыс - Тек сипаттамасы (description), "Керек" сөзі алынып тасталды
+            // МИНИ-ИНФО: Тек қажетті бөліктері (Қысқа)
+            data.workers.forEach(w => addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
+            data.goods.forEach(g => addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.product_name, g.id, 'good', g.device_token, '#ffc107'));
             data.orders.forEach(o => addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'));
         });
     }
 
+    // АВТОМАТТЫ ЖАҢАРТУ: Әр 30 секунд сайын
+    setInterval(loadMarkers, 30000);
+
     function addM(lat, lon, txt, mini, id, type, token, color) {
-        const icon = L.divIcon({html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
         const m = L.marker([lat, lon], {icon});
-        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;padding:5px;">Өшіру</button>` : "";
+        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;width:100%;cursor:pointer;">Өшіру</button>` : "";
         m.bindPopup(txt + del);
-        m.bindTooltip(mini, {permanent: true, direction: 'top', offset: [0, -10]});
+        // MINI АҚПАРАТ - ҚЫСҚАРТЫЛҒАН
+        m.bindTooltip(mini.substring(0, 20), {permanent: true, direction: 'top', offset: [0, -10]});
         markersGroup.addLayer(m);
     }
 
     function delItem(id, type, admin=false) {
-        if(!confirm("Өшіруді растайсыз ба?")) return;
+        if(!confirm("Өшіру?")) return;
         fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
-        .then(() => admin ? loadAdmin() : location.reload());
-    }
-
-    window.onhashchange = () => {
-        if(location.hash === "#admin777") {
-            const p = prompt("Құпия сөз:");
-            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
-        } else { document.getElementById('admin-modal').style.display='none'; }
-    };
-
-    function loadAdmin() {
-        fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table border="1" style="width:100%"><tr><th>Инфо</th><th>Сома</th><th>Әрекет</th></tr>`;
-            list.forEach(i => h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red">${i.p}</td><td><button onclick="act(${i.id},'${i.type}')">✅</button><button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`);
-            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Өтінім жоқ";
-        });
-    }
-
-    function act(id, type) {
-        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadAdmin());
+        .then(() => loadMarkers());
     }
 
     loadMarkers();
