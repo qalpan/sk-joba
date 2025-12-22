@@ -13,23 +13,24 @@ const pool = new Pool({
 
 // БАЗАДА КЕСТЕ ҚҰРУ (Осы бөлім сізде жоқ болды)
 async function initDatabase() {
-    const createTableQuery = `
+    const query = `
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
+            name TEXT NOT NULL, phone TEXT NOT NULL, job TEXT NOT NULL,
+            lat DOUBLE PRECISION, lon DOUBLE PRECISION, role TEXT DEFAULT 'worker'
+        );
+        CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY,
+            client_name TEXT NOT NULL,
+            description TEXT NOT NULL,
             phone TEXT NOT NULL,
-            job TEXT NOT NULL,
             lat DOUBLE PRECISION NOT NULL,
             lon DOUBLE PRECISION NOT NULL,
+            status TEXT DEFAULT 'open',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `;
-    try {
-        await pool.query(createTableQuery);
-        console.log("Кесте тексерілді немесе құрылды.");
-    } catch (err) {
-        console.error("Кесте құру кезінде қате шықты:", err);
-    }
+    await pool.query(query);
 }
 initDatabase(); // Сервер қосылғанда бір рет іске қосылады
 
