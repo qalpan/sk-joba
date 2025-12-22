@@ -3,54 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Marketplace</title>
+    <title>SK-Joba Marketplace</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
         #map { height: 50vh; width: 100%; }
-        .card { background: white; padding: 15px; border-radius: 8px; margin: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, button, select, textarea { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; }
-        .btn-w { background: #007bff; color: white; }
-        .btn-c { background: #dc3545; color: white; }
-        .btn-g { background: #ffc107; }
-        #admin-panel { display: none; background: #333; color: white; padding: 20px; position: fixed; top: 0; width: 100%; z-index: 9999; height: 100%; overflow-y: auto; }
+        .container { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .card { background: white; padding: 15px; border-radius: 10px; flex: 1; min-width: 280px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        input, button, select, textarea { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; }
+        .btn-w { background: #007bff; color: white; border: none; }
+        .btn-g { background: #ffc107; border: none; }
+        .btn-c { background: #dc3545; color: white; border: none; }
+        #admin-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 10000; padding: 20px; box-sizing: border-box; }
+        .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px; margin-top: 5px; cursor: pointer; border-radius: 3px; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
-<button onclick="showAdmin()" style="width: auto; position: absolute; top: 10px; right: 10px; z-index: 1000;">Админ</button>
 
-<div style="display: flex; flex-wrap: wrap;">
-    <div class="card" style="flex: 1;">
-        <h4>👷 Орындаушы</h4>
-        <input type="text" id="w_name" placeholder="Атыңыз">
-        <input type="text" id="w_job" placeholder="Мамандық">
-        <input type="tel" id="w_phone" placeholder="Телефон" value="+7">
+<div class="container">
+    <div class="card">
+        <h4>👷 Орындаушы (Төлеммен)</h4>
+        <input id="w_name" placeholder="Атыңыз">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="Телефон" value="+7">
         <select id="w_dur"><option value="1">1 сағат (500тг)</option><option value="24">1 тәулік (2000тг)</option></select>
         <button class="btn-w" onclick="saveWorker()">Тіркелу</button>
     </div>
-    <div class="card" style="flex: 1;">
+    <div class="card">
         <h4>📦 Тауар Сату</h4>
-        <input type="text" id="g_name" placeholder="Атыңыз">
-        <input type="text" id="g_prod" placeholder="Тауар аты">
-        <input type="text" id="g_price" placeholder="Бағасы">
-        <input type="tel" id="g_phone" placeholder="Телефон" value="+7">
+        <input id="g_name" placeholder="Атыңыз">
+        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_price" placeholder="Бағасы">
+        <input id="g_phone" placeholder="Телефон" value="+7">
         <button class="btn-g" onclick="saveGoods()">Тауар қосу</button>
     </div>
-    <div class="card" style="flex: 1;">
-        <h4>📋 Тапсырыс беру</h4>
-        <input type="text" id="c_name" placeholder="Атыңыз">
+    <div class="card">
+        <h4>📋 Тапсырыс беру (Тегін)</h4>
+        <input id="c_name" placeholder="Атыңыз">
         <textarea id="c_desc" placeholder="Не істеу керек?"></textarea>
-        <input type="tel" id="c_phone" placeholder="Телефон" value="+7">
+        <input id="c_phone" placeholder="Телефон" value="+7">
         <button class="btn-c" onclick="saveOrder()">Тапсырыс беру</button>
     </div>
 </div>
 
-<div id="admin-panel">
-    <h2>Күтіп тұрған өтінімдер</h2>
+<div id="admin-modal">
+    <button onclick="closeAdmin()" style="width: auto; float: right;">❌ Жабу</button>
+    <h2>Админ Панель</h2>
     <div id="pending-list"></div>
-    <button onclick="document.getElementById('admin-panel').style.display='none'">Жабу</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -58,89 +59,104 @@
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const API = "https://sk-joba.onrender.com";
+    
     const myToken = localStorage.getItem('device_token') || Math.random().toString(36).substring(2);
     localStorage.setItem('device_token', myToken);
+
+    // Админге кіру үшін сілтемеде #admin777 болуы керек
+    window.onhashchange = checkAdmin;
+    function checkAdmin() {
+        if(window.location.hash === "#admin777") {
+            const pass = prompt("Құпиясөз енгізіңіз:");
+            fetch(`${API}/admin/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ password: pass })
+            }).then(res => {
+                if(res.ok) {
+                    document.getElementById('admin-modal').style.display = 'block';
+                    loadPending();
+                } else {
+                    alert("Қате құпиясөз!");
+                    window.location.hash = "";
+                }
+            });
+        }
+    }
+    checkAdmin();
 
     function loadAll() {
         fetch(`${API}/get-all`).then(res => res.json()).then(data => {
             map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
             
-            data.workers.forEach(w => {
-                L.marker([w.lat, w.lon]).addTo(map)
-                 .bindPopup(`<b>${w.name}</b><br>${w.job}<br>${w.phone}`)
-                 .bindTooltip(w.job, {permanent: true, direction: 'top'}).openTooltip();
-            });
-
-            data.goods.forEach(g => {
-                const yellowIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png', iconSize: [25, 41] });
-                L.marker([g.lat, g.lon], {icon: yellowIcon}).addTo(map)
-                 .bindPopup(`<b>${g.product_name}</b><br>${g.price} тг<br>${g.phone}`)
-                 .bindTooltip(g.product_name, {permanent: true, direction: 'top'}).openTooltip();
-            });
-
-            data.orders.forEach(o => {
-                const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
-                let html = `<b>Тапсырыс: ${o.description}</b><br>${o.phone}`;
-                if(o.device_token === myToken) html += `<br><button onclick="deleteOrder(${o.id})">Өшіру</button>`;
-                L.marker([o.lat, o.lon], {icon: redIcon}).addTo(map)
-                 .bindPopup(html)
-                 .bindTooltip("Тапсырыс", {permanent: true, direction: 'top'}).openTooltip();
-            });
+            data.workers.forEach(w => addMarker(w, 'worker', 'blue', w.job));
+            data.goods.forEach(g => addMarker(g, 'good', 'yellow', g.product_name));
+            data.orders.forEach(o => addMarker(o, 'order', 'red', 'Тапсырыс'));
         });
     }
 
-    // МАҢЫЗДЫ: Функциялар атауын тексеріңіз!
-    function saveOrder() {
-        navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: v('c_name'), description: v('c_desc'), phone: v('c_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Тапсырыс қосылды!"); loadAll(); });
-        });
+    function addMarker(item, type, color, tooltipText) {
+        const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`;
+        const icon = L.icon({ iconUrl, iconSize: [25, 41] });
+        
+        let content = `<b>${item.name || item.client_name || item.seller_name}</b><br>${item.job || item.product_name || item.description}<br>${item.phone}`;
+        
+        if(item.device_token === myToken) {
+            content += `<br><button class="del-btn" onclick="deleteItem('${type}', ${item.id})">Өшіру</button>`;
+        }
+
+        L.marker([item.lat, item.lon], {icon}).addTo(map)
+         .bindPopup(content)
+         .bindTooltip(tooltipText, {permanent: true, direction: 'top'}).openTooltip();
     }
 
     function saveWorker() {
-        alert("Төлем жасаған соң админ растауын күтіңіз.");
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: v('w_name'), job: v('w_job'), phone: v('w_phone'), durationHours: v('w_dur'), lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Өтінім жіберілді."));
+            const body = { name: v('w_name'), phone: v('w_phone'), job: v('w_job'), durationHours: v('w_dur'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Админ растауын күтіңіз"));
         });
     }
 
     function saveGoods() {
-        alert("Тауар расталған соң картада көрінеді.");
         navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар жіберілді."));
+            const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Админ растауын күтіңіз"));
         });
     }
 
-    function showAdmin() {
-        document.getElementById('admin-panel').style.display = 'block';
+    function saveOrder() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const body = { name: v('c_name'), description: v('c_desc'), phone: v('c_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
+            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => loadAll());
+        });
+    }
+
+    function deleteItem(type, id) {
+        if(confirm("Өшіресіз бе?")) {
+            fetch(`${API}/delete/${type}/${id}`, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ device_token: myToken })
+            }).then(() => loadAll());
+        }
+    }
+
+    function loadPending() {
         fetch(`${API}/admin/pending`).then(res => res.json()).then(list => {
             let html = "";
-            list.forEach(item => {
-                html += `<div style="border-bottom:1px solid #555; padding:10px;">
-                    ${item.name} - ${item.info} (${item.type}) 
-                    <button onclick="activate('${item.id}', '${item.type}')">Растау</button>
-                </div>`;
+            list.forEach(i => {
+                html += `<div style="padding:10px; border-bottom:1px solid #ccc;">${i.name} (${i.info}) <button onclick="activate('${i.id}', '${i.type}')">Растау</button></div>`;
             });
-            document.getElementById('pending-list').innerHTML = html || "Жаңа өтінімдер жоқ";
+            document.getElementById('pending-list').innerHTML = html || "Өтінім жоқ";
         });
     }
 
     function activate(id, type) {
-        const secret = prompt("Админ пароль:");
-        fetch(`${API}/admin/activate`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id, type, secret })
-        }).then(() => showAdmin());
+        fetch(`${API}/admin/activate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, type }) }).then(() => loadPending());
     }
 
     function v(id) { return document.getElementById(id).value; }
-    function deleteOrder(id) {
-        fetch(`${API}/delete-order/${id}`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ device_token: myToken }) }).then(() => loadAll());
-    }
-
+    function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; window.location.hash = ""; }
     loadAll();
 </script>
 </body>
