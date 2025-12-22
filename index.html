@@ -3,160 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba Marketplace</title>
+    <title>SK-Marketplace v2</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OverlappingMarkerSpiderfier-Leaflet/0.2.6/oms.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
-        #map { height: 50vh; width: 100%; }
-        .container { padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
-        .card { background: white; padding: 15px; border-radius: 10px; flex: 1; min-width: 280px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        input, button, select, textarea { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; }
-        .btn-w { background: #007bff; color: white; border: none; }
-        .btn-g { background: #ffc107; border: none; }
-        .btn-c { background: #dc3545; color: white; border: none; }
-        #admin-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 10000; padding: 20px; box-sizing: border-box; }
-        .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px; margin-top: 5px; cursor: pointer; border-radius: 3px; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; }
+        #map { height: 55vh; width: 100%; }
+        .filter-bar { padding: 10px; background: white; display: flex; gap: 10px; overflow-x: auto; border-bottom: 2px solid #ddd; }
+        .filter-bar select, .filter-bar input { padding: 8px; border-radius: 20px; border: 1px solid #ccc; min-width: 150px; }
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .card h4 { margin-top: 0; color: #333; }
+        input:invalid { border: 2px solid red; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; color: black; }
+        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 10px; text-align: left; background: white; }
     </style>
 </head>
 <body>
+
+<div class="filter-bar">
+    <select id="filter-type" onchange="loadAll()">
+        <option value="all">Барлығы</option>
+        <option value="worker">Қызметтер</option>
+        <option value="good">Тауарлар</option>
+        <option value="order">Тапсырыстар</option>
+    </select>
+    <input type="text" id="search-input" placeholder="Іздеу (мысалы: Сантехник)..." oninput="loadAll()">
+</div>
 
 <div id="map"></div>
 
 <div class="container">
     <div class="card">
-        <h4>👷 Орындаушы (Төлеммен)</h4>
-        <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
-        <input id="w_phone" placeholder="Телефон" value="+7">
+        <h4>👷 Қызмет ұсыну</h4>
+        <input type="text" id="w_name" placeholder="Атыңыз (тек мәтін)" required pattern="[A-Za-zА-Яа-яЁёІіҢңҒғҮүҰұҚқӨөӘәҺһ\s]+">
+        <input type="text" id="w_job" placeholder="Мамандық (мысалы: Сантехник)" required>
+        <input type="tel" id="w_phone" placeholder="+77001234567" pattern="\+7\d{10}" title="Формат: +7 және 10 цифр" required>
         <select id="w_dur"><option value="1">1 сағат (500тг)</option><option value="24">1 тәулік (2000тг)</option></select>
-        <button class="btn-w" onclick="saveWorker()">Тіркелу</button>
+        <button class="btn-w" style="background:#007bff; color:white;" onclick="saveWorker()">Тіркелу</button>
     </div>
+
     <div class="card">
-        <h4>📦 Тауар Сату</h4>
-        <input id="g_name" placeholder="Атыңыз">
-        <input id="g_prod" placeholder="Тауар аты">
-        <input id="g_price" placeholder="Бағасы">
-        <input id="g_phone" placeholder="Телефон" value="+7">
-        <button class="btn-g" onclick="saveGoods()">Тауар қосу</button>
-    </div>
-    <div class="card">
-        <h4>📋 Тапсырыс беру (Тегін)</h4>
-        <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не істеу керек?"></textarea>
-        <input id="c_phone" placeholder="Телефон" value="+7">
-        <button class="btn-c" onclick="saveOrder()">Тапсырыс беру</button>
+        <h4>📦 Тауар сату</h4>
+        <input type="text" id="g_name" placeholder="Сатушы аты" required>
+        <input type="text" id="g_prod" placeholder="Тауар (мысалы: Сусын)" required>
+        <input type="text" id="g_price" placeholder="Бағасы (мысалы: 500 тг)" required>
+        <input type="tel" id="g_phone" placeholder="+77001234567" pattern="\+7\d{10}" required>
+        <button class="btn-g" style="background:#ffc107;" onclick="saveGoods()">Тауар қосу</button>
     </div>
 </div>
 
-<div id="admin-modal">
-    <button onclick="closeAdmin()" style="width: auto; float: right;">❌ Жабу</button>
-    <h2>Админ Панель</h2>
-    <div id="pending-list"></div>
+<div id="admin-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; overflow:auto; padding:20px;">
+    <button onclick="closeAdmin()" style="float:right; padding:10px 20px;">❌ Жабу</button>
+    <h2 style="color:white;">Күтудегі өтінімдер (Толық ақпарат)</h2>
+    <table class="admin-table" id="admin-table-body"></table>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const API = "https://sk-joba.onrender.com";
     
+    // Spiderfier инициализациясы
+    const oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true });
+    const API = "https://sk-joba.onrender.com";
     const myToken = localStorage.getItem('device_token') || Math.random().toString(36).substring(2);
     localStorage.setItem('device_token', myToken);
 
-    // Админге кіру үшін сілтемеде #admin777 болуы керек
-    window.onhashchange = checkAdmin;
-    function checkAdmin() {
-        if(window.location.hash === "#admin777") {
-            const pass = prompt("Құпиясөз енгізіңіз:");
-            fetch(`${API}/admin/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ password: pass })
-            }).then(res => {
-                if(res.ok) {
-                    document.getElementById('admin-modal').style.display = 'block';
-                    loadPending();
-                } else {
-                    alert("Қате құпиясөз!");
-                    window.location.hash = "";
-                }
-            });
-        }
-    }
-    checkAdmin();
-
     function loadAll() {
+        const typeFilter = document.getElementById('filter-type').value;
+        const searchFilter = document.getElementById('search-input').value.toLowerCase();
+
         fetch(`${API}/get-all`).then(res => res.json()).then(data => {
             map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
-            
-            data.workers.forEach(w => addMarker(w, 'worker', 'blue', w.job));
-            data.goods.forEach(g => addMarker(g, 'good', 'yellow', g.product_name));
-            data.orders.forEach(o => addMarker(o, 'order', 'red', 'Тапсырыс'));
+            oms.clearMarkers();
+
+            // Мамандар
+            if (typeFilter === 'all' || typeFilter === 'worker') {
+                data.workers.forEach(w => {
+                    if (w.job.toLowerCase().includes(searchFilter)) addMarker(w, 'worker', 'blue', w.job);
+                });
+            }
+            // Тауарлар
+            if (typeFilter === 'all' || typeFilter === 'good') {
+                data.goods.forEach(g => {
+                    if (g.product_name.toLowerCase().includes(searchFilter)) addMarker(g, 'good', 'yellow', g.product_name);
+                });
+            }
+            // Тапсырыстар
+            if (typeFilter === 'all' || typeFilter === 'order') {
+                data.orders.forEach(o => {
+                    if (o.description.toLowerCase().includes(searchFilter)) addMarker(o, 'order', 'red', 'Тапсырыс');
+                });
+            }
         });
     }
 
     function addMarker(item, type, color, tooltipText) {
-        const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`;
-        const icon = L.icon({ iconUrl, iconSize: [25, 41] });
+        const icon = L.icon({ 
+            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+            iconSize: [25, 41] 
+        });
         
-        let content = `<b>${item.name || item.client_name || item.seller_name}</b><br>${item.job || item.product_name || item.description}<br>${item.phone}`;
+        const marker = L.marker([item.lat, item.lon], {icon}).addTo(map);
+        let content = `<b>${item.name || item.seller_name || item.client_name}</b><br>${item.job || item.product_name || item.description}<br><a href="tel:${item.phone}">${item.phone}</a>`;
         
-        if(item.device_token === myToken) {
-            content += `<br><button class="del-btn" onclick="deleteItem('${type}', ${item.id})">Өшіру</button>`;
+        if (item.device_token === myToken) {
+            content += `<br><button onclick="deleteItem('${type}', ${item.id})" style="background:red; color:white; border:none; border-radius:3px; cursor:pointer;">Өшіру</button>`;
         }
 
-        L.marker([item.lat, item.lon], {icon}).addTo(map)
-         .bindPopup(content)
-         .bindTooltip(tooltipText, {permanent: true, direction: 'top'}).openTooltip();
+        marker.bindPopup(content);
+        marker.bindTooltip(tooltipText, {permanent: true, direction: 'top'});
+        oms.addMarker(marker); // Spiderfier-ге қосу
+    }
+
+    // Тексеру функциясы (Validation)
+    function validate(id, name) {
+        const el = document.getElementById(id);
+        if(!el.checkValidity()) {
+            alert(`"${name}" ұяшығы дұрыс толтырылмады. Телефон +77... түрінде (12 таңба) болуы тиіс.`);
+            return false;
+        }
+        return true;
     }
 
     function saveWorker() {
+        if(!validate('w_name', 'Аты') || !validate('w_job', 'Мамандық') || !validate('w_phone', 'Телефон')) return;
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('w_name'), phone: v('w_phone'), job: v('w_job'), durationHours: v('w_dur'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Админ растауын күтіңіз"));
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тіркелді! Төлем расталған соң шығасыз."));
         });
     }
 
     function saveGoods() {
+        if(!validate('g_phone', 'Телефон')) return;
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Админ растауын күтіңіз"));
+            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар қосылды! Админ растауын күтіңіз."));
         });
     }
 
-    function saveOrder() {
-        navigator.geolocation.getCurrentPosition(p => {
-            const body = { name: v('c_name'), description: v('c_desc'), phone: v('c_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => loadAll());
-        });
-    }
-
-    function deleteItem(type, id) {
-        if(confirm("Өшіресіз бе?")) {
-            fetch(`${API}/delete/${type}/${id}`, {
-                method: 'DELETE',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ device_token: myToken })
-            }).then(() => loadAll());
-        }
-    }
-
+    // Админ терезесінде толық кесте шығару
     function loadPending() {
         fetch(`${API}/admin/pending`).then(res => res.json()).then(list => {
-            let html = "";
+            let html = `<tr><th>Түрі</th><th>Аты</th><th>Ақпарат</th><th>Бағасы/Жұмысы</th><th>Телефон</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
-                html += `<div style="padding:10px; border-bottom:1px solid #ccc;">${i.name} (${i.info}) <button onclick="activate('${i.id}', '${i.type}')">Растау</button></div>`;
+                html += `<tr>
+                    <td>${i.type === 'worker' ? 'Маман' : 'Тауар'}</td>
+                    <td>${i.name || i.seller_name}</td>
+                    <td>${i.job || i.product_name}</td>
+                    <td>${i.price || i.expires_at || '-'}</td>
+                    <td>${i.phone}</td>
+                    <td><button onclick="activate('${i.id}', '${i.type}')">✅ Растау</button></td>
+                </tr>`;
             });
-            document.getElementById('pending-list').innerHTML = html || "Өтінім жоқ";
+            document.getElementById('admin-table-body').innerHTML = html;
         });
-    }
-
-    function activate(id, type) {
-        fetch(`${API}/admin/activate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, type }) }).then(() => loadPending());
     }
 
     function v(id) { return document.getElementById(id).value; }
-    function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; window.location.hash = ""; }
+    window.onhashchange = function() { if(location.hash === "#admin777") { document.getElementById('admin-modal').style.display='block'; loadPending(); } };
     loadAll();
 </script>
 </body>
