@@ -11,7 +11,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// База құрылымын реттеу
+// Деректер базасын инициализациялау
 async function initDB() {
     try {
         await pool.query(`
@@ -28,15 +28,23 @@ async function initDB() {
                 lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
                 is_active BOOLEAN DEFAULT FALSE, device_token TEXT);
         `);
-        console.log("Деректер базасы дайын.");
-    } catch (err) { console.error(err); }
+        console.log("Database structure is ready.");
+    } catch (err) { console.error("DB Init Error:", err); }
 }
 initDB();
 
-// Сақтау API-лері
+// Автоматты тазалау: Уақыты өткен мамандарды әр 5 минут сайын өшіру
+setInterval(async () => {
+    try {
+        const now = new Date();
+        await pool.query('DELETE FROM workers WHERE expires_at < $1', [now]);
+    } catch (err) { console.error("Cleanup Error:", err); }
+}, 300000);
+
+// API бағыттары
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
-    const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
     await pool.query('INSERT INTO workers (name, phone, job, lat, lon, expires_at, device_token) VALUES ($1, $2, $3, $4, $5, $6, $7)', 
     [name, phone, job, lat, lon, expiresAt, device_token]);
     res.json({ success: true });
@@ -80,4 +88,9 @@ app.delete('/delete/:type/:id', async (req, res) => {
     const { type, id } = req.params;
     const { device_token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2
+    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
+    res.json({ success: result.rowCount > 0 });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
