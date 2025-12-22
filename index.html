@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Marketplace v3</title>
+    <title>SK-Joba Marketplace</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f7f6; }
-        #map { height: 55vh; width: 100%; border-bottom: 3px solid #007bff; }
-        .filter-bar { padding: 12px; background: white; display: flex; gap: 10px; sticky: top; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; }
+        #map { height: 50vh; width: 100%; border-bottom: 3px solid #007bff; }
+        .filter-bar { padding: 10px; background: white; display: flex; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         input, textarea, select, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
         button { cursor: pointer; font-weight: bold; border: none; color: white; transition: 0.3s; }
         
-        /* Маркер үстіндегі тұрақты жазу стилі */
+        .kaspi-btn { display: block; background: #f00; color: #fff; text-align: center; padding: 10px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; }
+        
         .marker-label {
             background: white; border: 1px solid #007bff; border-radius: 4px;
             padding: 2px 6px; font-weight: bold; font-size: 11px; color: #333;
@@ -36,7 +37,7 @@
         <option value="good">Тауарлар</option>
         <option value="order">Тапсырыстар</option>
     </select>
-    <input type="text" id="search-input" placeholder="Іздеу (мысалы: Сантехник, Нар)..." oninput="loadAll()">
+    <input type="text" id="search-input" placeholder="Іздеу..." oninput="loadAll()">
 </div>
 
 <div id="map"></div>
@@ -44,34 +45,41 @@
 <div class="container">
     <div class="card" style="border-top: 5px solid #007bff;">
         <h4>👷 Қызмет ұсыну</h4>
-        <input id="w_name" placeholder="Атыңыз (Мәтін)" required>
-        <input id="w_job" placeholder="Мамандық (мысалы: Сантехник)" required>
-        <input id="w_phone" placeholder="+77XXXXXXXXX" pattern="\+7\d{10}" required>
-        <select id="w_dur"><option value="1">1 сағат (500тг)</option><option value="24">1 тәулік (2000тг)</option></select>
-        <button style="background: #007bff;" onclick="saveWorker()">Тіркелу</button>
+        <input id="w_name" placeholder="Атыңыз">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="+77XXXXXXXXX">
+        <select id="w_dur">
+            <option value="1">1 сағат (500тг)</option>
+            <option value="24">1 тәулік (2000тг)</option>
+        </select>
+        <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px dashed #f00;">
+            <p style="font-size: 12px; margin: 0; color: #d00;"><b>Төлем қажет:</b></p>
+            <a href="https://pay.kaspi.kz/pay/qr?amount=500" target="_blank" class="kaspi-btn">Kaspi-мен төлеу 500₸</a>
+        </div>
+        <button style="background: #007bff;" onclick="saveWorker()">Төледім және Тіркелу</button>
     </div>
 
     <div class="card" style="border-top: 5px solid #ffc107;">
         <h4>📦 Тауар сату</h4>
-        <input id="g_name" placeholder="Сатушы аты" required>
-        <input id="g_prod" placeholder="Тауар (мысалы: Сусын)" required>
-        <input id="g_price" placeholder="Бағасы" required>
-        <input id="g_phone" placeholder="+77XXXXXXXXX" pattern="\+7\d{10}" required>
-        <button style="background: #ffc107; color: black;" onclick="saveGoods()">Тауар қосу</button>
+        <input id="g_name" placeholder="Сатушы аты">
+        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_price" placeholder="Бағасы">
+        <input id="g_phone" placeholder="+77XXXXXXXXX">
+        <button style="background: #ffc107; color: black;" onclick="saveGoods()">Тауарды қосу</button>
     </div>
 
     <div class="card" style="border-top: 5px solid #dc3545;">
         <h4>📋 Тапсырыс беру</h4>
-        <input id="c_name" placeholder="Атыңыз" required>
-        <textarea id="c_desc" placeholder="Не қажет? (мысалы: Кран жөндеу керек)" required></textarea>
-        <input id="c_phone" placeholder="+77XXXXXXXXX" pattern="\+7\d{10}" required>
+        <input id="c_name" placeholder="Атыңыз">
+        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
+        <input id="c_phone" placeholder="+77XXXXXXXXX">
         <button style="background: #dc3545;" onclick="saveOrder()">Жариялау</button>
     </div>
 </div>
 
 <div id="admin-modal">
     <button onclick="closeAdmin()" style="background:#333; width:auto; float:right;">❌ Жабу</button>
-    <h2>Басқару панелі</h2>
+    <h2>Админ: Төлемді тексеру</h2>
     <div id="admin-table-container"></div>
 </div>
 
@@ -96,12 +104,11 @@
     }
 
     function loadAll() {
-        const typeF = document.getElementById('filter-type').value;
-        const searchF = document.getElementById('search-input').value.toLowerCase();
-
         fetch(`${API}/get-all`).then(res => res.json()).then(data => {
             map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
             oms.clearMarkers();
+            const typeF = document.getElementById('filter-type').value;
+            const searchF = document.getElementById('search-input').value.toLowerCase();
 
             if(typeF === 'all' || typeF === 'worker') {
                 data.workers.forEach(w => { if(w.job.toLowerCase().includes(searchF)) addMarker(w, 'worker', 'blue', w.job); });
@@ -118,45 +125,32 @@
     function addMarker(item, type, color, miniText) {
         const marker = L.marker([item.lat, item.lon], { icon: getIcon(color) }).addTo(map);
         let content = `<b>${item.name || item.seller_name || item.client_name}</b><br>${item.job || item.product_name || item.description}<br><a href="tel:${item.phone}">${item.phone}</a>`;
-        
-        if(item.device_token === myToken) {
-            content += `<br><button onclick="delItem('${type}', ${item.id})" style="background:red; padding:4px; font-size:10px; margin-top:5px; color:white; border-radius:4px;">Өшіру</button>`;
-        }
+        if(item.device_token === myToken) content += `<br><button onclick="delItem('${type}', ${item.id})" style="background:red; padding:4px; font-size:10px; margin-top:5px;">Өшіру</button>`;
         
         marker.bindPopup(content).bindTooltip(miniText, { permanent: true, direction: 'top', className: 'marker-label' });
         oms.addMarker(marker);
     }
 
-    // Автоматты жаңарту (Polling) - әр 30 секунд сайын
     setInterval(loadAll, 30000);
 
-    function check(id) {
-        const el = document.getElementById(id);
-        if(!el.value || (el.pattern && !el.checkValidity())) { alert("Қате! Телефон +7... (12 таңба) болуы тиіс."); return false; }
-        return true;
-    }
-
     function saveWorker() {
-        if(!check('w_phone') || !check('w_name')) return;
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('w_name'), job: v('w_job'), phone: v('w_phone'), durationHours: v('w_dur'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Жіберілді"); loadAll(); });
+            fetch(`${API}/save-worker`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Төлем тексеруге жіберілді. Расталған соң картада пайда болады."));
         });
     }
 
     function saveGoods() {
-        if(!check('g_phone')) return;
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Жіберілді"); loadAll(); });
+            fetch(`${API}/save-goods`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => alert("Тауар растауға жіберілді."));
         });
     }
 
     function saveOrder() {
-        if(!check('c_phone')) return;
         navigator.geolocation.getCurrentPosition(p => {
             const body = { name: v('c_name'), description: v('c_desc'), phone: v('c_phone'), device_token: myToken, lat: p.coords.latitude, lon: p.coords.longitude };
-            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => { alert("Жарияланды!"); loadAll(); });
+            fetch(`${API}/save-order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }).then(() => loadAll());
         });
     }
 
@@ -166,23 +160,22 @@
         }
     }
 
-    function checkAdmin() {
-        if(window.location.hash === "#admin777") {
-            const pass = prompt("Password:");
-            if(pass === "admin777") { document.getElementById('admin-modal').style.display='block'; loadPending(); }
+    // Админ логикасы
+    window.onhashchange = () => {
+        if(location.hash === "#admin777") {
+            const p = prompt("Password:");
+            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadPending(); }
         }
-    }
-    window.addEventListener('hashchange', checkAdmin);
-    window.addEventListener('load', checkAdmin);
+    };
 
     function loadPending() {
         fetch(`${API}/admin/pending`).then(res => res.json()).then(list => {
             let html = `<table class="admin-table"><tr><th>Түрі</th><th>Аты</th><th>Ақпарат</th><th>Телефон</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
                 html += `<tr><td>${i.type}</td><td>${i.name}</td><td>${i.info}</td><td>${i.phone}</td>
-                <td><button onclick="activate('${i.id}', '${i.type}')" style="background:green; width:auto;">✅ Растау</button></td></tr>`;
+                <td><button onclick="activate('${i.id}', '${i.type}')" style="background:green; width:auto;">✅ Төлемді растау</button></td></tr>`;
             });
-            document.getElementById('admin-table-container').innerHTML = list.length ? html + "</table>" : "<h4>Бос</h4>";
+            document.getElementById('admin-table-container').innerHTML = list.length ? html + "</table>" : "<h4>Жаңа өтінімдер жоқ</h4>";
         });
     }
 
@@ -191,8 +184,7 @@
     }
 
     function v(id) { return document.getElementById(id).value; }
-    function closeAdmin() { document.getElementById('admin-modal').style.display='none'; window.location.hash = ""; }
-
+    function closeAdmin() { document.getElementById('admin-modal').style.display='none'; location.hash=""; }
     loadAll();
 </script>
 </body>
