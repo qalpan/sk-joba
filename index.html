@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Marketplace</title>
+    <title>Marketplace SK</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
@@ -78,16 +78,21 @@
         l.href = `https://kaspi.kz/pay/_/transfer?number=77012223344&amount=${pr}`;
     }
 
-    function check(ids, numbers = []) {
+    // ҚАТАҢ ВАЛИДАЦИЯ (Бұрынғы дұрыс нұсқа)
+    function check(ids, numIds = []) {
         let ok = true;
         ids.forEach(id => {
             const el = document.getElementById(id);
             const val = el.value.trim();
             if(!val) { el.classList.add('invalid'); ok = false; }
-            else if(numbers.includes(id) && isNaN(val.replace(/\s/g, ''))) { el.classList.add('invalid'); alert("Бағаға тек сан жазыңыз!"); ok = false; }
+            else if(numIds.includes(id) && isNaN(val.replace(/\s/g, ''))) { 
+                el.classList.add('invalid'); 
+                alert("Бұл өріске тек сан жазыңыз!"); 
+                ok = false; 
+            }
             else { el.classList.remove('invalid'); }
         });
-        if(!ok) alert("Қателерді түзетіңіз!");
+        if(!ok) alert("Барлық жолды дұрыс толтырыңыз!");
         return ok;
     }
 
@@ -121,6 +126,7 @@
         .catch(() => { alert("Сервер қатесі!"); btn.disabled = false; });
     }
 
+    // КАРТАДАҒЫ ТОЛЫҚ ПОПАП АҚПАРАТЫ
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             markersGroup.clearLayers();
