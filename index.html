@@ -29,40 +29,59 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map').setView([43.2389, 76.8897], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// Картаны іске қосу
+const map = L.map('map').setView([43.2389, 76.8897], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    document.getElementById('userForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const name = document.getElementById('name').value;
-        const phone = document.getElementById('phone').value;
-        const job = document.getElementById('job').value;
+// 1. БАЗАДАН ДЕРЕКТЕРДІ АЛЫП, КАРТАҒА ШЫҒАРУ ФУНКЦИЯСЫ
+function loadMarkers() {
+    fetch('https://sk-joba.onrender.com/get-locations')
+        .then(res => res.json())
+        .then(users => {
+            users.forEach(user => {
+                // Әр қолданушыға маркер қою
+                const marker = L.marker([user.lat, user.lon]).addTo(map);
+                
+                // Маркерді басқанда ақпарат шығады
+                marker.bindPopup(`
+                    <b>${user.name}</b><br>
+                    ${user.job}<br>
+                    <a href="tel:${user.phone}">${user.phone}</a>
+                `);
+            });
+        })
+        .catch(err => console.error("Маркерлерді жүктеу қатесі:", err));
+}
 
-        navigator.geolocation.getCurrentPosition(position => {
-            const data = {
-                name, phone, job,
-                lat: position.coords.latitude,
-                lon: position.coords.longitude
-            };
+// Сайт ашылғанда маркерлерді бірден жүктеу
+loadMarkers();
 
-            // Өз Render сілтемеңізді тексеріңіз
-            fetch('https://sk-joba.onrender.com/save-location', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(res => {
-                if (!res.ok) throw new Error("Деректер қате");
-                return res.json();
-            })
-            .then(() => {
-                alert("Сәтті сақталды!");
-                location.reload();
-            })
-            .catch(err => alert("Қате: " + err.message));
-        }, () => alert("Геолокацияға рұқсат беріңіз!"));
+// 2. ФОРМАНЫ ЖІБЕРУ БӨЛІМІ (сізде бар, бірақ соңына loadMarkers қосамыз)
+document.getElementById('userForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('name').value;
+    const phone = document.getElementById('phone').value;
+    const job = document.getElementById('job').value;
+
+    navigator.geolocation.getCurrentPosition(position => {
+        const data = {
+            name, phone, job,
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+        };
+
+        fetch('https://sk-joba.onrender.com/save-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(() => {
+            alert("Сәтті сақталды!");
+            loadMarkers(); // Жаңа маркерді бірден картаға қосу
+        });
     });
+});
 </script>
 </body>
 </html>
