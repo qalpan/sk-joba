@@ -3,37 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba Marketplace</title>
+    <title>SK-Joba | Нақты Бақылау</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 50vh; width: 100%; border-bottom: 3px solid #007bff; }
+        
+        /* КАРТА КӨРІНУІ ҮШІН БИІКТІК МІНДЕТТІ */
+        #map { 
+            height: 60vh; 
+            width: 100%; 
+            border-bottom: 3px solid #007bff; 
+            background: #e0e0e0; /* Карта жүктелгенше сұры түс тұрады */
+        }
+
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
         
-        /* ВАЛИДАЦИЯ ҚАТЕСІ - ҚЫЗЫЛ ЖАҚТАУ */
+        /* ВАЛИДАЦИЯ ҚАТЕСІ */
         .invalid { border: 2px solid red !important; background: #fff8f8; }
         
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
-        
-        /* МАРКЕРДЕГІ ТҰРАҚТЫ ЖАЗУ (MINI INFO) */
+        /* БАСТЫ АҚПАРАТ (ӘРҚАШАН КӨРІНІП ТҰРАТЫН ЖАЗУ) */
         .leaflet-tooltip { 
             background: white !important; 
             border: 2px solid #007bff !important; 
             color: black !important; 
             font-weight: bold !important; 
-            border-radius: 4px !important; 
-            padding: 2px 5px !important; 
-            font-size: 12px !important; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            padding: 2px 6px !important;
+            font-size: 12px !important;
+            border-radius: 4px;
         }
-        
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     </style>
 </head>
 <body>
@@ -42,7 +50,7 @@
 
 <div class="container">
     <div class="card">
-        <h4>👷 Қызмет тіркеу</h4>
+        <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық">
         <input id="w_phone" placeholder="Телефон">
@@ -51,12 +59,12 @@
     </div>
 
     <div class="card">
-        <h4>📦 Тауар қосу</h4>
+        <h4>📦 Тауар</h4>
         <input id="g_name" placeholder="Атыңыз">
         <input id="g_prod" placeholder="Тауар аты">
-        <input id="g_price" placeholder="Бағасы (Тек сан)">
+        <input id="g_price" placeholder="Бағасы (ТЕК САН)">
         <input id="g_phone" placeholder="Телефон">
-        <select id="g_dur"><option value="1">1 сағат</option><option value="24" selected>1 тәулік</option></select>
+        <select id="g_dur"><option value="24">1 тәулік</option></select>
         <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Қосу</button>
     </div>
 
@@ -70,69 +78,10 @@
 </div>
 
 <div id="admin-modal">
-    <button onclick="window.location.hash=''" style="float:right; background: #6c757d;">❌ Жабу</button>
-    <h2>Админ панель</h2>
+    <button onclick="window.location.hash=''" style="float:right;">❌ Жабу</button>
+    <h2>Админ басқару</h2>
     <div id="admin-list"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-<script>
-    const API = "https://sk-joba.onrender.com";
-    const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
-    localStorage.setItem('token', myToken);
-
-    const map = L.map('map').setView([43.2389, 76.8897], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, showCoverageOnHover: false });
-    map.addLayer(markersGroup);
-
-    // ҚАТАҢ ТЕКСЕРУ ФУНКЦИЯСЫ (ВАЛИДАЦИЯ)
-    function validate(ids, numIds = []) {
-        let isValid = true;
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            const val = el.value.trim();
-            
-            // Бос болса немесе сан болуы тиіс жерде әріп болса
-            let isError = !val;
-            if (numIds.includes(id) && isNaN(val.replace(/\s/g, ''))) isError = true;
-
-            if (isError) {
-                el.classList.add('invalid');
-                isValid = false;
-            } else {
-                el.classList.remove('invalid');
-            }
-        });
-        return isValid;
-    }
-
-    function saveItem(type) {
-        let f=[], nf=[], data={}, path='';
-        if(type==='worker'){f=['w_name','w_job','w_phone']; path='/save-worker'; data={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')};}
-        if(type==='good'){f=['g_name','g_prod','g_price','g_phone']; nf=['g_price']; path='/save-goods'; data={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')};}
-        if(type==='order'){f=['c_name','c_desc','c_phone']; path='/save-order'; data={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')};}
-
-        // Тексеруден өтпесе, тоқтату
-        if(!validate(f, nf)) return alert("Қате толтырылды! Қызыл өрістерді тексеріңіз.");
-
-        navigator.geolocation.getCurrentPosition(p => {
-            data.lat=p.coords.latitude; data.lon=p.coords.longitude; data.device_token=myToken;
-            fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
-            .then(() => location.reload());
-        }, () => alert("Геолокация рұқсат етілмеген!"));
-    }
-
-    function loadMarkers() {
-        fetch(API+'/get-all').then(r => r.json()).then(data => {
-            markersGroup.clearLayers();
-            data.workers.forEach(w => addM(w.lat, w.lon, `<b>👷 ${w.job}</b><br>${w.name}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
-            data.goods.forEach(g => addM(g.lat, g.lon, `<b>📦 ${g.product_name}</b><br>${g.price}₸<br>${g.phone}`, g.price + "₸", g.id, 'good', g.device_token, '#ffc107'));
-            data.orders.forEach(o => addM(o.lat, o.lon, `<b>📋 Тапсырыс</b><br>${o.description}<br>${o.phone}`, "КЕРЕК", o.id, 'order', o.device_token, '#28a745'));
-        });
-    }
-
-    function addM(lat, lon, txt, mini, id, type, token, color) {
-        const icon = L.divIcon({html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px #000;"></div>`, className:''});
-        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;width:
+<script src="https://unpkg
