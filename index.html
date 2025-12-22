@@ -17,7 +17,7 @@
         .kaspi { display: block; background: #e81d25; color: white; text-align: center; padding: 10px; border-radius: 5px; text-decoration: none; font-weight: bold; margin-bottom: 5px; }
         .invalid { border: 2px solid red !important; }
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
-        .leaflet-tooltip { background: white; border: 2px solid #007bff; color: black; font-weight: bold; border-radius: 4px; padding: 1px 4px; font-size: 11px; }
+        .leaflet-tooltip { background: white; border: 2px solid #007bff; color: black; font-weight: bold; border-radius: 4px; padding: 2px 4px; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -71,7 +71,6 @@
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     
-    // Cluster қосу - маркерлерді жайып көрсету үшін
     const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, showCoverageOnHover: false });
     map.addLayer(markersGroup);
 
@@ -107,21 +106,21 @@
             data.lat=p.coords.latitude; data.lon=p.coords.longitude; data.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
             .then(() => location.reload());
-        }, () => alert("Геолокация қажет!"));
+        }, () => alert("Геолокация қажет! Параметрлерден рұқсат беріңіз."));
     }
 
     function loadMarkers() {
         fetch(API+'/get-all').then(r => r.json()).then(data => {
             markersGroup.clearLayers();
             data.workers.forEach(w => addM(w.lat, w.lon, `<b>👷 ${w.job}</b><br>${w.name}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'));
-            data.goods.forEach(g => addM(g.lat, g.lon, `<b>📦 ${g.product_name}</b><br>${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'));
+            data.goods.forEach(g => addM(g.lat, g.lon, `<b>📦 ${g.product_name}</b><br>${g.price}₸<br>${g.phone}`, g.price + "₸", g.id, 'good', g.device_token, '#ffc107'));
             data.orders.forEach(o => addM(o.lat, o.lon, `<b>📋 Тапсырыс</b><br>${o.description}<br>${o.phone}`, "КЕРЕК", o.id, 'order', o.device_token, '#28a745'));
         });
     }
 
     function addM(lat, lon, txt, mini, id, type, token, color) {
         const icon = L.divIcon({html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px #000;"></div>`, className:''});
-        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;border:none;color:white;cursor:pointer;margin-top:5px;width:100%">Өшіру</button>` : "";
+        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;border:none;color:white;cursor:pointer;margin-top:10px;width:100%;padding:5px;border-radius:3px;">Өшіру</button>` : "";
         
         const m = L.marker([lat, lon], {icon});
         m.bindPopup(txt + del);
@@ -131,8 +130,26 @@
 
     function delItem(id, type, admin=false) {
         if(!confirm("Өшіруді растайсыз ба?")) return;
-        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
-        .then(() => admin ? loadAdmin() : location.reload());
+        
+        fetch(API+'/delete-item', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({
+                id: id, 
+                type: type, 
+                token: admin ? 'ADMIN' : myToken
+            })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if(data.success) {
+                alert("Сәтті өшірілді");
+                if(admin) loadAdmin(); else location.reload();
+            } else {
+                alert("Қате: " + (data.message || "Өшіру мүмкін емес"));
+            }
+        })
+        .catch(err => alert("Сервермен байланыс жоқ"));
     }
 
     function v(id){ return document.getElementById(id).value; }
