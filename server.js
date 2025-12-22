@@ -69,10 +69,18 @@ app.get('/get-all', async (req, res) => {
 });
 
 // ТАПСЫРЫСТЫ ӨШІРУ (Клиент үшін)
+// Тапсырысты өшіру (ПИН-кодпен)
 app.delete('/delete-order/:id', async (req, res) => {
+    const { pin } = req.body; // Клиент жіберген ПИН
     try {
-        await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
-        res.json({ success: true });
+        const order = await pool.query('SELECT pin FROM orders WHERE id = $1', [req.params.id]);
+        
+        if (order.rows.length > 0 && order.rows[0].pin === pin) {
+            await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
+            res.json({ success: true });
+        } else {
+            res.status(403).send("Қате ПИН-код!");
+        }
     } catch (err) { res.status(500).send(err.message); }
 });
 
