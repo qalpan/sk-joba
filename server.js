@@ -11,32 +11,29 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ЖАҢАРТУ (Барлық кестеге device_token және is_active қосылған)
-async function initDatabase() {
+// База құрылымын реттеу
+async function initDB() {
     try {
-        await pool.query('DROP TABLE IF EXISTS workers, orders, goods CASCADE;');
-        
-        await pool.query(`CREATE TABLE workers (
-            id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, 
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP);`);
-            
-        await pool.query(`CREATE TABLE orders (
-            id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, 
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
-            
-        await pool.query(`CREATE TABLE goods (
-            id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, 
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            is_active BOOLEAN DEFAULT FALSE, device_token TEXT);`);
-            
-        console.log("База сәтті жаңартылды.");
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS workers (
+                id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, 
+                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
+                is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, 
+                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
+                device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS goods (
+                id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, 
+                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
+                is_active BOOLEAN DEFAULT FALSE, device_token TEXT);
+        `);
+        console.log("Деректер базасы дайын.");
     } catch (err) { console.error(err); }
 }
-initDatabase();
+initDB();
 
-// --- САҚТАУ API ---
+// Сақтау API-лері
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
@@ -59,7 +56,6 @@ app.post('/save-order', async (req, res) => {
     res.json({ success: true });
 });
 
-// --- ЖАЛПЫ ДЕРЕКТЕРДІ АЛУ ---
 app.get('/get-all', async (req, res) => {
     const workers = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
     const goods = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
@@ -67,7 +63,6 @@ app.get('/get-all', async (req, res) => {
     res.json({ workers: workers.rows, goods: goods.rows, orders: orders.rows });
 });
 
-// --- АДМИН ПАНЕЛЬ API ---
 app.get('/admin/pending', async (req, res) => {
     const w = await pool.query('SELECT id, name, job as info, phone, \'worker\' as type FROM workers WHERE is_active = FALSE');
     const g = await pool.query('SELECT id, seller_name as name, product_name as info, phone, \'good\' as type FROM goods WHERE is_active = FALSE');
@@ -81,14 +76,8 @@ app.post('/admin/activate', async (req, res) => {
     res.json({ success: true });
 });
 
-// --- ӨШІРУ API ---
 app.delete('/delete/:type/:id', async (req, res) => {
     const { type, id } = req.params;
     const { device_token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
-    res.json({ success: result.rowCount > 0 });
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды`));
+    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2
