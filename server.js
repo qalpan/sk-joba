@@ -46,7 +46,8 @@ app.post('/delete-item', async (req, res) => {
     const { id, type, token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
     const query = token === 'ADMIN' ? `DELETE FROM ${table} WHERE id = $1` : `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
-    await pool.query(query, [parseInt(id), (token === 'ADMIN' ? undefined : token)].filter(x => x !== undefined));
+    const params = token === 'ADMIN' ? [parseInt(id)] : [parseInt(id), token];
+    await pool.query(query, params);
     res.json({success:true});
 });
 
