@@ -15,6 +15,7 @@ async function initDB() {
 }
 initDB();
 
+// 1. САҚТАУ: Қызмет пен Тауар is_active=FALSE (Төлем күтеді)
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -24,7 +25,7 @@ app.post('/save-worker', async (req, res) => {
 
 app.post('/save-goods', async (req, res) => {
     const { name, product, price, phone, lat, lon, device_token } = req.body;
-    const exp = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const exp = new Date(Date.now() + 24 * 60 * 60 * 1000); // Тауар 24 сағатқа
     await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [name, product, price, phone, lat, lon, exp, device_token]);
     res.json({success:true});
 });
@@ -35,16 +36,23 @@ app.post('/save-order', async (req, res) => {
     res.json({success:true});
 });
 
+// 2. КАРТАҒА ШЫҒАРУ: Тек белсенді және уақыты өтпегендер
 app.get('/get-all', async (req, res) => {
-    const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE AND expires_at > NOW()');
-    const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE AND expires_at > NOW()');
-    const o = await pool.query('SELECT * FROM orders WHERE created_at > NOW() - interval \'24 hours\'');
+    // Авто-тазалау: Ескіргендерді базадан біржола өшіру
+    await pool.query("DELETE FROM workers WHERE expires_at < NOW()");
+    await pool.query("DELETE FROM goods WHERE expires_at < NOW()");
+    await pool.query("DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'");
+
+    const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
+    const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
+    const o = await pool.query('SELECT * FROM orders');
     res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
 });
 
+// 3. АДМИН ПАНЕЛЬ: Күтудегілер
 app.get('/admin/pending', async (req, res) => {
-    const w = await pool.query(`SELECT id, name, job as info, phone, 'worker' as type, CASE WHEN (expires_at - created_at) > interval '2 hours' THEN '490₸' ELSE '49₸' END as price FROM workers WHERE is_active = FALSE`);
-    const g = await pool.query(`SELECT id, seller_name as name, product_name as info, phone, 'good' as type, '490₸' as price FROM goods WHERE is_active = FALSE`);
+    const w = await pool.query(`SELECT id, job as info, phone, 'worker' as type, CASE WHEN (expires_at - created_at) > interval '2 hours' THEN '490₸' ELSE '49₸' END as price FROM workers WHERE is_active = FALSE`);
+    const g = await pool.query(`SELECT id, product_name as info, phone, 'good' as type, '490₸' as price FROM goods WHERE is_active = FALSE`);
     res.json([...w.rows, ...g.rows]);
 });
 
@@ -59,7 +67,8 @@ app.post('/delete-item', async (req, res) => {
     const { id, type, token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
     const query = token === 'ADMIN' ? `DELETE FROM ${table} WHERE id = $1` : `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
-    await pool.query(query, token === 'ADMIN' ? [parseInt(id)] : [parseInt(id), token]);
+    const params = token === 'ADMIN' ? [parseInt(id)] : [parseInt(id), token];
+    await pool.query(query, params);
     res.json({success:true});
 });
 
