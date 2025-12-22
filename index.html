@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Full System</title>
+    <title>SK-Joba | Live System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
@@ -11,7 +11,7 @@
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
         .search-box { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 85%; max-width: 400px; }
         .search-box input { width: 100%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); outline: none; }
-        #map { height: 50vh; width: 100%; }
+        #map { height: 50vh; width: 100%; border-bottom: 2px solid #007bff; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
@@ -23,14 +23,14 @@
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу: қызмет, тауар..." oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу: қызмет, тауар, тапсырыс..." oninput="filterMarkers()">
 </div>
 
 <div id="map"></div>
 
 <div id="admin-modal">
-    <button onclick="window.location.hash=''" style="background:red; width:100px;">❌ Жабу</button>
-    <h2>Админ: Төлемдерді растау</h2>
+    <button onclick="window.location.hash=''" style="background:red; color:white; width:120px; margin-bottom:10px;">❌ Жабу</button>
+    <h3>Төлемді растау (Админ)</h3>
     <div id="admin-list"></div>
 </div>
 
@@ -39,11 +39,26 @@
         <h4>👷 Қызмет</h4>
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық">
-        <input id="w_phone" placeholder="Телефон">
+        <input id="w_phone" placeholder="Телефон (8707...)">
         <select id="w_dur"><option value="1">1 сағат (49₸)</option><option value="24">1 тәулік (490₸)</option></select>
         <button onclick="saveItem('worker')">Тіркелу</button>
     </div>
+    <div class="card">
+        <h4>📦 Тауар</h4>
+        <input id="g_name" placeholder="Атыңыз">
+        <input id="g_prod" placeholder="Тауар атауы">
+        <input id="g_price" placeholder="Бағасы (тек сан)">
+        <input id="g_phone" placeholder="Телефон">
+        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Қосу</button>
     </div>
+    <div class="card">
+        <h4>📋 Тапсырыс</h4>
+        <input id="c_name" placeholder="Атыңыз">
+        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
+        <input id="c_phone" placeholder="Телефон">
+        <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
+    </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
@@ -59,50 +74,88 @@
 
     let allData = { workers: [], goods: [], orders: [] };
 
-    // АДМИН ПАНЕЛЬ АШУ
+    function v(id){ return document.getElementById(id).value.trim(); }
+
+    function saveItem(type) {
+        let d = {}, path = '';
+        if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
+        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone')}; }
+        if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
+
+        const pClean = d.phone.replace(/[\+\s]/g, '');
+        if(pClean.length < 11 || pClean.length > 12) return alert("Телефон қате!");
+        if(type==='good' && isNaN(d.price)) return alert("Баға тек сан!");
+
+        navigator.geolocation.getCurrentPosition(p => {
+            d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
+            fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
+            .then(() => {
+                if(type === 'order') alert("Тапсырыс жарияланды!");
+                else alert("Тіркелуге жіберілді. Төлемнен соң админ картаға шығарады!");
+                loadMarkers();
+            });
+        });
+    }
+
+    function loadMarkers() {
+        fetch(API+'/get-all').then(r => r.json()).then(data => {
+            allData = data;
+            filterMarkers();
+        });
+    }
+
+    function filterMarkers() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        markersGroup.clearLayers();
+        allData.workers.forEach(w => {
+            if(w.job.toLowerCase().includes(term) || term === "қызмет") addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff');
+        });
+        allData.goods.forEach(g => {
+            if(g.product_name.toLowerCase().includes(term) || term === "тауар") addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸`, g.product_name, g.id, 'good', g.device_token, '#ffc107');
+        });
+        allData.orders.forEach(o => {
+            if(o.description.toLowerCase().includes(term) || term === "тапсырыс") addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745');
+        });
+    }
+
+    function addM(lat, lon, txt, mini, id, type, token, color) {
+        const icon = L.divIcon({html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid #fff;"></div>`, className:''});
+        const m = L.marker([lat, lon], {icon});
+        const del = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;cursor:pointer;">Өшіру</button>` : "";
+        m.bindPopup(txt + del);
+        m.bindTooltip(mini.substring(0,15), {permanent: true, direction: 'top', offset: [0, -10]});
+        markersGroup.addLayer(m);
+    }
+
+    function delItem(id, type, admin=false) {
+        if(!confirm("Өшіруді растайсыз ба?")) return;
+        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
+        .then(() => admin ? loadAdmin() : loadMarkers());
+    }
+
     window.onhashchange = () => {
         if(location.hash === "#admin777") {
-            const p = prompt("Password:");
-            if(p === "admin777") { 
-                document.getElementById('admin-modal').style.display='block'; 
-                loadAdmin(); 
-            }
-        } else { 
-            document.getElementById('admin-modal').style.display='none'; 
-        }
+            const p = prompt("Пароль:");
+            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
+        } else { document.getElementById('admin-modal').style.display='none'; }
     };
 
     function loadAdmin() {
         fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Ақпарат</th><th>Баға</th><th>Әрекет</th></tr>`;
+            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Инфо</th><th>Баға</th><th>Әрекет</th></tr>`;
             list.forEach(i => {
-                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.price}</td>
-                <td><button onclick="activate(${i.id},'${i.type}')">✅ Қос</button>
-                <button onclick="delItem(${i.id},'${i.type}',true)" style="background:red">❌</button></td></tr>`;
+                h += `<tr><td>${i.info}</td><td style="color:red">${i.price}</td><td><button onclick="act(${i.id},'${i.type}')">✅</button><button onclick="delItem(${i.id},'${i.type}',true)">❌</button></td></tr>`;
             });
-            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Төлем күтілудегі өтінімдер жоқ.";
+            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Өтінімдер жоқ.";
         });
     }
 
-    function activate(id, type) {
-        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})})
-        .then(() => loadAdmin());
+    function act(id, type) {
+        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadAdmin());
     }
 
-    // Бұрынғы saveItem, loadMarkers және filterMarkers функцияларын осы жерге толық қосыңыз (алдыңғы кодтағыдай)
-    // Тек saveItem ішіндегі alert-ті ұмытпаңыз.
-    
-    function saveItem(type) {
-        // ... (бұрынғы валидациялар)
-        fetch(API+path, {method:'POST', ...})
-        .then(() => {
-            alert("Ақпарат тіркелуге жіберілді. Төлемнен кейін админ картаға шығарады!");
-            loadMarkers();
-        });
-    }
-    
-    loadMarkers();
     setInterval(loadMarkers, 30000);
+    loadMarkers();
 </script>
 </body>
 </html>
