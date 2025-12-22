@@ -11,37 +11,15 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Деректер базасын инициализациялау
-async function initDB() {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS workers (
-                id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, 
-                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP);
-            CREATE TABLE IF NOT EXISTS orders (
-                id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, 
-                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-                device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-            CREATE TABLE IF NOT EXISTS goods (
-                id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, 
-                lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, device_token TEXT);
-        `);
-        console.log("Database structure is ready.");
-    } catch (err) { console.error("DB Init Error:", err); }
-}
-initDB();
-
-// Автоматты тазалау: Уақыты өткен мамандарды әр 5 минут сайын өшіру
+// Уақыты біткендерді автоматты өшіру (әр 5 минут сайын)
 setInterval(async () => {
     try {
-        const now = new Date();
-        await pool.query('DELETE FROM workers WHERE expires_at < $1', [now]);
-    } catch (err) { console.error("Cleanup Error:", err); }
+        await pool.query('DELETE FROM workers WHERE expires_at < NOW()');
+        await pool.query('DELETE FROM goods WHERE expires_at < NOW()'); // Тауарларға да мерзім қосылды
+    } catch (err) { console.error("Cleanup error:", err); }
 }, 300000);
 
-// API бағыттары
+// Орындаушыны сақтау
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -50,13 +28,16 @@ app.post('/save-worker', async (req, res) => {
     res.json({ success: true });
 });
 
+// Тауарды сақтау (Төлемді есепке алу үшін мерзім қосылды)
 app.post('/save-goods', async (req, res) => {
-    const { name, product, price, phone, lat, lon, device_token } = req.body;
-    await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token) VALUES ($1, $2, $3, $4, $5, $6, $7)', 
-    [name, product, price, phone, lat, lon, device_token]);
+    const { name, product, price, phone, lat, lon, durationHours, device_token } = req.body;
+    const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
+    await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', 
+    [name, product, price, phone, lat, lon, expiresAt, device_token]);
     res.json({ success: true });
 });
 
+// Тапсырысты сақтау (Тегін, 24 сағатқа)
 app.post('/save-order', async (req, res) => {
     const { name, description, phone, lat, lon, device_token } = req.body;
     await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1, $2, $3, $4, $5, $6)', 
@@ -88,9 +69,8 @@ app.delete('/delete/:type/:id', async (req, res) => {
     const { type, id } = req.params;
     const { device_token } = req.body;
     const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-    const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
-    res.json({ success: result.rowCount > 0 });
+    await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, device_token]);
+    res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(process.env.PORT || 10000);
