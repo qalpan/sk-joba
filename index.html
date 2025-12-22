@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marketplace | SK</title>
+    <title>SK-Joba | Marketplace</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 40vh; width: 100%; border-bottom: 2px solid #007bff; }
+        body { font-family: sans-serif; margin: 0; background: #f4f4f9; }
+        #map { height: 40vh; width: 100%; border-bottom: 3px solid #007bff; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input, select, textarea, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .kaspi-btn { display: block; background: #f00; color: white; text-align: center; padding: 10px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 5px 0; }
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10000; padding:20px; overflow-y:auto; }
-        .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
-        .admin-table th { background: #333; color: white; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        input, select, textarea, button { width: 100%; margin: 8px 0; padding: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        .kaspi { display: block; background: #e81d25; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-bottom: 5px; }
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 8px; }
+        .invalid { border: 2px solid red !important; }
     </style>
 </head>
 <body>
@@ -26,117 +26,115 @@
 
 <div class="container">
     <div class="card">
-        <h4>👷 Қызмет ұсыну</h4>
-        <input id="w_name" placeholder="Атыңыз (Міндетті)">
-        <input id="w_job" placeholder="Мамандық (Міндетті)">
-        <input id="w_phone" placeholder="Телефон (Міндетті)">
-        <select id="w_dur" onchange="updPrice()">
-            <option value="1">1 сағат (49₸)</option>
-            <option value="24">1 тәулік (490₸)</option>
-        </select>
-        <a id="w_link" href="https://kaspi.kz/pay/_/transfer?number=77000000000&amount=49" target="_blank" class="kaspi-btn">Kaspi-мен төлеу 49₸</a>
+        <h4>👷 Қызмет</h4>
+        <input id="w_name" placeholder="Атыңыз">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="Телефон">
+        <select id="w_dur" onchange="document.getElementById('w_l').innerText='Kaspi төлеу '+(this.value=='1'?'49':'490')+'₸'"><option value="1">1 сағат (49₸)</option><option value="24">1 тәулік (490₸)</option></select>
+        <a id="w_l" href="https://kaspi.kz/pay/_/transfer?number=77012223344&amount=49" target="_blank" class="kaspi">Kaspi төлеу 49₸</a>
         <button onclick="saveWorker(this)">Төледім және Тіркелу</button>
     </div>
 
     <div class="card">
-        <h4>📦 Тауар сату</h4>
-        <input id="g_name" placeholder="Атыңыз (Міндетті)">
-        <input id="g_prod" placeholder="Тауар аты (Міндетті)">
-        <input id="g_price" placeholder="Бағасы (Міндетті)">
-        <input id="g_phone" placeholder="Телефон (Міндетті)">
-        <a href="https://kaspi.kz/pay/_/transfer?number=77000000000&amount=490" target="_blank" class="kaspi-btn" style="background:#ffc107; color:black;">Kaspi-мен төлеу 490₸</a>
+        <h4>📦 Тауар</h4>
+        <input id="g_name" placeholder="Атыңыз">
+        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_price" placeholder="Бағасы">
+        <input id="g_phone" placeholder="Телефон">
+        <a href="https://kaspi.kz/pay/_/transfer?number=77012223344&amount=490" target="_blank" class="kaspi" style="background:#ffc107; color:black;">Kaspi төлеу 490₸</a>
         <button onclick="saveGoods(this)" style="background:#ffc107; color:black;">Төледім және Қосу</button>
+    </div>
+
+    <div class="card">
+        <h4>📋 Тапсырыс (Тегін)</h4>
+        <input id="c_name" placeholder="Атыңыз">
+        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
+        <input id="c_phone" placeholder="Телефон">
+        <button onclick="saveOrder(this)" style="background:#28a745;">Жариялау</button>
     </div>
 </div>
 
 <div id="admin-modal">
-    <button onclick="window.location.hash=''" style="width:auto; float:right; background:#333;">❌ Жабу</button>
-    <h2>Админ Панель</h2>
-    <div id="admin-list">Жүктелуде...</div>
+    <button onclick="window.location.hash=''" style="width:auto; float:right;">❌ Жабу</button>
+    <h2>Админ Панель: Төлемдерді тексеру</h2>
+    <div id="admin-content"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
     const API = "https://sk-joba.onrender.com";
-    const myToken = localStorage.getItem('t') || Math.random().toString(36).substr(2);
-    localStorage.setItem('t', myToken);
+    const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
+    localStorage.setItem('token', myToken);
 
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function updPrice() {
-        const val = document.getElementById('w_dur').value;
-        const price = val === "1" ? 49 : 490;
-        document.getElementById('w_link').innerText = `Kaspi-мен төлеу ${price}₸`;
-        document.getElementById('w_link').href = `https://kaspi.kz/pay/_/transfer?number=77000000000&amount=${price}`;
-    }
-
-    // ҚАТАҢ ВАЛИДАЦИЯ
-    function isInvalid(ids) {
-        let err = false;
+    function check(ids) {
+        let ok = true;
         ids.forEach(id => {
             const el = document.getElementById(id);
-            if(!el.value.trim()) { el.style.borderColor = "red"; err = true; }
-            else { el.style.borderColor = "#ccc"; }
+            if(!el.value.trim()) { el.classList.add('invalid'); ok = false; }
+            else { el.classList.remove('invalid'); }
         });
-        if(err) alert("Барлық жолды толтырыңыз!");
-        return err;
+        if(!ok) alert("Барлық жолды толтырыңыз!");
+        return ok;
     }
 
     function saveWorker(btn) {
-        if(isInvalid(['w_name', 'w_job', 'w_phone'])) return; // ОСЫ ЖЕРДЕ ТОҚТАТАДЫ
+        if(!check(['w_name','w_job','w_phone'])) return;
         btn.disabled = true;
         navigator.geolocation.getCurrentPosition(p => {
-            fetch(API+'/save-worker', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
-                name: v('w_name'), job: v('w_job'), phone: v('w_phone'), durationHours: v('w_dur'),
-                lat: p.coords.latitude, lon: p.coords.longitude, device_token: myToken
-            })}).then(() => { alert("Төлем тексерілуде!"); location.reload(); });
+            send('/save-worker', {name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur'), lat:p.coords.latitude, lon:p.coords.longitude, device_token:myToken}, btn);
         }, () => { alert("Геолокация қажет!"); btn.disabled = false; });
     }
 
     function saveGoods(btn) {
-        if(isInvalid(['g_name', 'g_prod', 'g_price', 'g_phone'])) return;
+        if(!check(['g_name','g_prod','g_price','g_phone'])) return;
         btn.disabled = true;
         navigator.geolocation.getCurrentPosition(p => {
-            fetch(API+'/save-goods', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
-                name: v('g_name'), product: v('g_prod'), price: v('g_price'), phone: v('g_phone'),
-                lat: p.coords.latitude, lon: p.coords.longitude, device_token: myToken
-            })}).then(() => { alert("Тауар тексерілуде!"); location.reload(); });
+            send('/save-goods', {name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), lat:p.coords.latitude, lon:p.coords.longitude, device_token:myToken}, btn);
         }, () => { btn.disabled = false; });
+    }
+
+    function saveOrder(btn) {
+        if(!check(['c_name','c_desc','c_phone'])) return;
+        btn.disabled = true;
+        navigator.geolocation.getCurrentPosition(p => {
+            send('/save-order', {name:v('c_name'), description:v('c_desc'), phone:v('c_phone'), lat:p.coords.latitude, lon:p.coords.longitude, device_token:myToken}, btn);
+        }, () => { btn.disabled = false; });
+    }
+
+    function send(path, data, btn) {
+        fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+        .then(() => { alert("Сәтті жіберілді!"); location.reload(); })
+        .catch(() => { alert("Қате!"); btn.disabled = false; });
     }
 
     function v(id) { return document.getElementById(id).value; }
 
-    // АДМИН ПАНЕЛЬ
-    async function loadAdmin() {
-        const res = await fetch(API+'/admin/pending');
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : [];
-        let html = `<table class="admin-table"><tr><th>Күні</th><th>Аты/Тел</th><th>Ақпарат</th><th>Төлем сомасы</th><th>Әрекет</th></tr>`;
-        list.forEach(i => {
-            html += `<tr>
-                <td>${i.date_text}</td>
-                <td>${i.name}<br>${i.phone}</td>
-                <td>${i.info}</td>
-                <td style="color:red; font-weight:bold;">${i.payment_info}</td>
-                <td><button onclick="act('${i.id}','${i.type}')" style="background:green; padding:5px;">✅ Растау</button></td>
-            </tr>`;
-        });
-        document.getElementById('admin-list').innerHTML = list.length ? html + '</table>' : 'Жаңа өтінім жоқ.';
-    }
-
-    async function act(id, type) {
-        await fetch(API+'/admin/activate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type}) });
-        loadAdmin();
-    }
-
+    // АДМИН
     window.onhashchange = () => {
-        if(window.location.hash === "#admin777") {
-            const p = prompt("Pass:");
+        if(location.hash === "#admin777") {
+            const p = prompt("Пароль:");
             if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
         } else { document.getElementById('admin-modal').style.display='none'; }
     };
-    if(window.location.hash === "#admin777") window.onhashchange();
+
+    function loadAdmin() {
+        const cont = document.getElementById('admin-content');
+        cont.innerHTML = "Жүктелуде...";
+        fetch(API+'/admin/pending').then(r => r.json()).then(list => {
+            let h = `<table class="admin-table"><tr><th>Уақыты</th><th>Аты/Телефон</th><th>Ақпарат</th><th>Сома</th><th>Әрекет</th></tr>`;
+            list.forEach(i => {
+                h += `<tr><td>${i.date_text}</td><td>${i.name}<br>${i.phone}</td><td>${i.info}</td><td style="color:red;font-weight:bold;">${i.price}</td><td><button onclick="act('${i.id}','${i.type}')">✅ Растау</button></td></tr>`;
+            });
+            cont.innerHTML = list.length ? h + "</table>" : "Өтінім жоқ.";
+        });
+    }
+
+    function act(id, type) {
+        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadAdmin());
+    }
 </script>
 </body>
 </html>
