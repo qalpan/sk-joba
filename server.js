@@ -11,7 +11,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ РЕТТЕУ
+// БАЗА ҚҰРЫЛЫМЫН САҚТАУ
 async function initDB() {
     try {
         await pool.query(`
@@ -19,11 +19,11 @@ async function initDB() {
             CREATE TABLE IF NOT EXISTS goods (id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS orders (id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         `);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("DB Error:", err); }
 }
 initDB();
 
-// API: МАМАН
+// МАМАН САҚТАУ
 app.post('/save-worker', async (req, res) => {
     const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
     const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -31,7 +31,7 @@ app.post('/save-worker', async (req, res) => {
     res.json({ success: true });
 });
 
-// API: ТАУАР
+// ТАУАР САҚТАУ
 app.post('/save-goods', async (req, res) => {
     const { name, product, price, phone, lat, lon, durationHours, device_token } = req.body;
     const expiresAt = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
@@ -39,14 +39,14 @@ app.post('/save-goods', async (req, res) => {
     res.json({ success: true });
 });
 
-// API: ТАПСЫРЫС
+// ТАПСЫРЫС САҚТАУ
 app.post('/save-order', async (req, res) => {
     const { name, description, phone, lat, lon, device_token } = req.body;
     await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1, $2, $3, $4, $5, $6)', [name, description, phone, lat, lon, device_token]);
     res.json({ success: true });
 });
 
-// API: КАРТА
+// КАРТАҒА ШЫҒАРУ
 app.get('/get-all', async (req, res) => {
     const w = await pool.query('SELECT * FROM workers WHERE is_active = TRUE');
     const g = await pool.query('SELECT * FROM goods WHERE is_active = TRUE');
@@ -54,7 +54,7 @@ app.get('/get-all', async (req, res) => {
     res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
 });
 
-// API: АДМИН
+// АДМИН ПАНЕЛЬ (Төлем сомасымен)
 app.get('/admin/pending', async (req, res) => {
     const w = await pool.query(`SELECT id, name, job as info, phone, 'worker' as type, to_char(created_at, 'DD.MM HH24:MI') as d, CASE WHEN (expires_at-created_at) > interval '2 hour' THEN '490₸' ELSE '49₸' END as p FROM workers WHERE is_active = FALSE`);
     const g = await pool.query(`SELECT id, seller_name as name, product_name as info, phone, 'good' as type, to_char(created_at, 'DD.MM HH24:MI') as d, CASE WHEN (expires_at-created_at) > interval '2 hour' THEN '490₸' ELSE '49₸' END as p FROM goods WHERE is_active = FALSE`);
