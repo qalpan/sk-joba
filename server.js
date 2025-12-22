@@ -21,12 +21,50 @@ const pool = new Pool({
 // БАЗАНЫ ТЕКСЕРУ (Бұл бөлім базаның дайын екеніне көз жеткізеді)
 async function initDB() {
     try {
+        // Ескі кестелерді өшіру (Базаны жаңарту үшін)
+        await pool.query('DROP TABLE IF EXISTS workers, goods, orders CASCADE');
+        
+        // Жаңа құрылыммен қайта құру
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS workers (id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, fee_amount TEXT);
-            CREATE TABLE IF NOT EXISTS goods (id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, expires_at TIMESTAMP, fee_amount TEXT);
-            CREATE TABLE IF NOT EXISTS orders (id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS workers (
+                id SERIAL PRIMARY KEY, 
+                name TEXT, 
+                phone TEXT, 
+                job TEXT, 
+                lat DOUBLE PRECISION, 
+                lon DOUBLE PRECISION, 
+                is_active BOOLEAN DEFAULT FALSE, 
+                device_token TEXT, 
+                expires_at TIMESTAMP, 
+                fee_amount TEXT, 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS goods (
+                id SERIAL PRIMARY KEY, 
+                seller_name TEXT, 
+                product_name TEXT, 
+                price TEXT, 
+                phone TEXT, 
+                lat DOUBLE PRECISION, 
+                lon DOUBLE PRECISION, 
+                is_active BOOLEAN DEFAULT FALSE, 
+                device_token TEXT, 
+                expires_at TIMESTAMP, 
+                fee_amount TEXT, 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY, 
+                client_name TEXT, 
+                description TEXT, 
+                phone TEXT, 
+                lat DOUBLE PRECISION, 
+                lon DOUBLE PRECISION, 
+                device_token TEXT, 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         `);
-        console.log("Database initialized");
+        console.log("Database updated with fee_amount column");
     } catch (err) {
         console.error("DB Init Error:", err);
     }
