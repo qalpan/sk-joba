@@ -46,12 +46,9 @@ app.post('/user-ping', (req, res) => {
     res.json({ success: true });
 });
 
+// КАРТАҒА ШЫҒАРУ ЛОГИКАСЫ (get-all)
 app.get('/get-all', async (req, res) => {
     try {
-        await pool.query(`DELETE FROM workers WHERE created_at < NOW() - interval '24 hours'`);
-        await pool.query(`DELETE FROM goods WHERE created_at < NOW() - interval '24 hours'`);
-        await pool.query(`DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'`);
-
         const w = await pool.query('SELECT * FROM workers');
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
@@ -59,21 +56,18 @@ app.get('/get-all', async (req, res) => {
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // КАРТА ҮШІН СҮЗГІ: Тек Админ мақұлдаған (is_active=true) хабарламаларды ғана көрсетеміз
-const filteredWorkers = w.rows.filter(i => i.is_active === true);
-const filteredGoods = g.rows.filter(i => i.is_active === true);
-const filteredOrders = o.rows.filter(i => i.is_active === true);
+        // КАРТАДА КІМДЕР КӨРІНЕДІ:
+        // 1. Немесе ол VIP (is_active = true және сіз қолмен растағансыз)
+        // 2. Немесе ол тегін жариялап, қазір ОНЛАЙН отыр
+        const filteredWorkers = w.rows.filter(i => i.is_active || isOnline(i.device_token));
+        const filteredGoods = g.rows.filter(i => i.is_active || isOnline(i.device_token));
 
-res.json({ 
-    workers: filteredWorkers, 
-    goods: filteredGoods, 
-    orders: filteredOrders,
-    admin_all: {
-        workers: w.rows, // Админ бәрін (мақұлданбағандарды да) көре береді
-        goods: g.rows,
-        orders: o.rows
-    }
-});
+        res.json({ 
+            workers: filteredWorkers, 
+            goods: filteredGoods, 
+            orders: o.rows,
+            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
+        });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
@@ -82,9 +76,9 @@ res.json({
 app.post('/save-worker', async (req, res) => {
     try {
         const { name, phone, job, lat, lon, device_token } = req.body;
-        // Мұнда соңында FALSE тұр - бұл Админ мақұлдағанша картада КӨРІНБЕЙДІ деген сөз
+        // Тегін жарияланым бірден шығу үшін is_active = true қыламыз
         await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, $7)', 
-        [name, phone, job, lat, lon, device_token, false]);
+        [name, phone, job, lat, lon, device_token, true]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
@@ -94,7 +88,7 @@ app.post('/save-goods', async (req, res) => {
     try {
         const { name, product, price, phone, lat, lon, device_token } = req.body;
         await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, $8)', 
-        [name, product, price, phone, lat, lon, device_token, false]);
+        [name, product, price, phone, lat, lon, device_token, true]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
