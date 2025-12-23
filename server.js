@@ -11,167 +11,87 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ЖӘНЕ КЕСТЕЛЕРДІ БАСТАУ
+// Онлайн қолданушылар базасы (жадта сақталады)
+let onlineUsers = {}; 
+
+// Базаны дайындау
 async function initDB() {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS workers (
-                id SERIAL PRIMARY KEY, 
-                name TEXT, 
-                phone TEXT, 
-                job TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, 
-                device_token TEXT, 
-                expires_at TIMESTAMP, 
-                fee_amount TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS goods (
-                id SERIAL PRIMARY KEY, 
-                seller_name TEXT, 
-                product_name TEXT, 
-                price TEXT, 
-                phone TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT FALSE, 
-                device_token TEXT, 
-                expires_at TIMESTAMP, 
-                fee_amount TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS orders (
-                id SERIAL PRIMARY KEY, 
-                client_name TEXT, 
-                description TEXT, 
-                phone TEXT, 
-                lat DOUBLE PRECISION, 
-                lon DOUBLE PRECISION, 
-                device_token TEXT, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log("Database & Tables Ready");
-    } catch (err) { 
-        console.error("DB Init Error:", err); 
-    }
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS workers (id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS goods (id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, is_active BOOLEAN DEFAULT FALSE, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS orders (id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, device_token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+    `);
 }
 initDB();
 
-// --- ЖАЛПЫ МӘЛІМЕТТЕРДІ АЛУ (КАРТА ҮШІН) ---
-// server.js ішіндегі өзгерістер
-
-// 1. Онлайн қолданушыларды бақылау
-let onlineUsers = new Set();
-
-// Socket.io немесе қарапайым "ping" жүйесін қолдануға болады, 
-// бірақ біз қарапайым болу үшін статус жіберуді қолданамыз.
+// Пинг функциясы: қолданушының онлайн екенін білу
 app.post('/user-ping', (req, res) => {
     const { token } = req.body;
-    onlineUsers.add(token);
-    // 30 секундтан кейін онлайн тізімінен өшіру (егер қайта ping келмесе)
-    setTimeout(() => onlineUsers.delete(token), 35000);
+    if (token) {
+        onlineUsers[token] = Date.now(); // Соңғы рет қашан белсенді болды
+    }
     res.json({ success: true });
 });
 
 app.get('/get-all', async (req, res) => {
     try {
-        // АВТОМАТТЫ ӨШІРУ: Барлық хабарламалар 24 сағаттан кейін жойылады
+        // 1. Автоматты тазалау: 24 сағаттан ескінің бәрін өшіру
         await pool.query("DELETE FROM workers WHERE created_at < NOW() - interval '24 hours'");
         await pool.query("DELETE FROM goods WHERE created_at < NOW() - interval '24 hours'");
         await pool.query("DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'");
-        
-        // Базадан бәрін алу
+
         const w = await pool.query('SELECT * FROM workers');
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
-        
-        // СҮЗГІ: Тек онлайн адамдар немесе ақылы (is_active) адамдарды жіберу
-        const filterOnline = (list) => list.filter(item => 
-            item.is_active === true || onlineUsers.has(item.device_token)
-        );
 
-        res.json({ 
-            workers: filterOnline(w.rows), 
-            goods: filterOnline(g.rows), 
-            orders: o.rows // Тапсырыстар әрқашан көрінеді
-        });
+        const now = Date.now();
+        // Пайдаланушы 40 секундтан артық хабарсыз кетсе - оффлайн
+        const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 40000;
+
+        // Фильтр: Тек VIP (is_active) немесе қазір онлайн отырғандар
+        const filteredWorkers = w.rows.filter(item => item.is_active || isOnline(item.device_token));
+        const filteredGoods = g.rows.filter(item => item.is_active || isOnline(item.device_token));
+
+        res.json({ workers: filteredWorkers, goods: filteredGoods, orders: o.rows });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
-// --- САҚТАУ МАРШРУТТАРЫ ---
+
+// Сақтау маршруттары (Барлығы тегін, is_active = false болып түседі)
 app.post('/save-worker', async (req, res) => {
-    try {
-        const { name, phone, job, lat, lon, durationHours, device_token } = req.body;
-        const fee = durationHours === "1" ? "49₸" : "490₸";
-        const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
-        
-        await pool.query(
-            'INSERT INTO workers (name, phone, job, lat, lon, expires_at, device_token, fee_amount, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8, FALSE)', 
-            [name, phone, job, lat, lon, exp, device_token, fee]
-        );
-        res.json({success: true});
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { name, phone, job, lat, lon, device_token } = req.body;
+    await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, phone, job, lat, lon, device_token]);
+    res.json({success: true});
 });
 
 app.post('/save-goods', async (req, res) => {
-    try {
-        const { name, product, price, phone, lat, lon, durationHours, device_token } = req.body;
-        const fee = durationHours === "1" ? "49₸" : "490₸";
-        const exp = new Date(Date.now() + parseInt(durationHours) * 60 * 60 * 1000);
-
-        await pool.query(
-            'INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, expires_at, device_token, fee_amount, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, FALSE)', 
-            [name, product, price, phone, lat, lon, exp, device_token, fee]
-        );
-        res.json({success: true});
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { name, product, price, phone, lat, lon, device_token } = req.body;
+    await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6,$7)', [name, product, price, phone, lat, lon, device_token]);
+    res.json({success: true});
 });
 
 app.post('/save-order', async (req, res) => {
-    try {
-        const { name, description, phone, lat, lon, device_token } = req.body;
-        await pool.query(
-            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', 
-            [name, description, phone, lat, lon, device_token]
-        );
-        res.json({success: true});
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { name, description, phone, lat, lon, device_token } = req.body;
+    await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, description, phone, lat, lon, device_token]);
+    res.json({success: true});
 });
 
-// --- АДМИН ПАНЕЛЬ ЛОГИКАСЫ ---
-
-// Хабарламаны белсендіру (Төлем расталғанда)
+// Админ: Белсендіру (VIP қылу - оффлайн болса да көрінетін болады)
 app.post('/admin/activate', async (req, res) => {
-    try {
-        const { id, type } = req.body;
-        const table = type === 'worker' ? 'workers' : 'goods';
-        await pool.query(`UPDATE ${table} SET is_active = TRUE WHERE id = $1`, [id]);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { id, type } = req.body;
+    const table = type === 'worker' ? 'workers' : 'goods';
+    await pool.query(`UPDATE ${table} SET is_active = TRUE WHERE id = $1`, [id]);
+    res.json({ success: true });
 });
 
-// Хабарламаны өшіру (Админ немесе қолданушы)
 app.post('/delete-item', async (req, res) => {
-    try {
-        const { id, type, token } = req.body;
-        const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-        
-        // Егер token 'admin777' болса, кез келгенін өшіреді, әйтпесе тек өз құрылғысыныкін
-        let query, params;
-        if (token === 'admin777') {
-            query = `DELETE FROM ${table} WHERE id = $1`;
-            params = [parseInt(id)];
-        } else {
-            query = `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
-            params = [parseInt(id), token];
-        }
-        
-        await pool.query(query, params);
-        res.json({success: true});
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { id, type, token } = req.body;
+    const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
+    if (token === 'admin777') {
+        await pool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+    } else {
+        await pool.query(`DELETE FROM ${table} WHERE id = $1 AND device_token = $2`, [id, token]);
+    }
+    res.json({success:true});
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(process.env.PORT || 10000);
