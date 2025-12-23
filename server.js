@@ -105,6 +105,59 @@ app.get('/get-all', async (req, res) => {
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    
+    // Смартфон ба, әлде компьютер ме екенін анықтау
+    const isMobile = window.innerWidth < 768;
+
+    rawData.forEach(i => {
+        if (i.info.toLowerCase().includes(term)) {
+            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+            
+            const m = L.marker([i.lat, i.lon], {
+                icon: L.divIcon({ 
+                    html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3)"></div>`, 
+                    className: '' 
+                })
+            });
+
+            // Өшіру батырмасының логикасы
+            let delBtn = "";
+            if (i.device_token === myToken) {
+                delBtn = `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; padding:8px; margin-top:10px; border-radius:5px; font-size:12px; width:100%;">Өшіру ❌</button>`;
+            }
+
+            // POPUP (БАСҚАНДА АШЫЛАТЫН ТЕРЕЗЕ)
+            // autoPan: true - терезе ашылғанда картаны жылжытып, маркерді ортаға әкеледі
+            m.bindPopup(`
+                <div style="min-width:150px;">
+                    <b style="color:${color}; text-transform:uppercase;">${i.type}</b><br>
+                    <span style="font-size:14px; font-weight:bold;">${i.info}</span><br>
+                    <a href="tel:${i.phone}" style="display:block; margin-top:5px; color:var(--success); font-weight:bold; text-decoration:none; font-size:14px;">📞 ${i.phone}</a>
+                    ${delBtn}
+                </div>
+            `, { 
+                offset: [0, -10], // Терезені маркерден сәл жоғары көтереді
+                autoPan: true 
+            });
+
+            // TOOLTIP (МАРКЕР АСТЫНДАҒЫ ЖАЗУ)
+            // Смартфонда (isMobile) жазуды тұрақты қылмаймыз, тек жанына барғанда көрінеді
+            // Бұл картаның "қоқысқа" толып кетпеуін қамтамасыз етеді
+            m.bindTooltip(i.info.substring(0,20), { 
+                permanent: !isMobile, // Компьютерде тұрақты, телефонда - жоқ
+                direction: 'bottom', 
+                offset: [0, 10], 
+                className: 'marker-label' 
+            });
+
+            markersGroup.addLayer(m);
+        }
+    });
+}
+
 // САҚТАУ МАРШРУТТАРЫ
 app.post('/save-worker', async (req, res) => {
     try {
