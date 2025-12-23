@@ -95,8 +95,14 @@ app.post('/save-goods', async (req, res) => {
 
 app.post('/save-order', async (req, res) => {
     try {
-        const { name, description, phone, lat, lon, device_token } = req.body;
-        await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, description, phone, lat, lon, device_token]);
+        const { name, description, phone, lat, lon, device_token, is_vip } = req.body;
+        // Тегін болса бірден шығады (true), VIP болса сіз растағанша күтеді (false)
+        const activeStatus = is_vip ? false : true; 
+
+        await pool.query(
+            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7)', 
+            [name, description, phone, lat, lon, device_token, activeStatus]
+        );
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
