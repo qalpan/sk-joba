@@ -87,6 +87,15 @@
     <div id="admin-content"></div>
 </div>
 
+<div class="card">
+    <h4>👷 Қызмет (Тегін)</h4>
+    <div class="payment-info">
+        💎 <b>VIP статус:</b> 490₸ төлеп, 24 сағат бойы картада ҮНЕМІ (оффлайн болсаңыз да) көрініңіз.
+    </div>
+    <button onclick="saveItem('worker')">Тегін жариялау</button>
+    <button onclick="initVIP('worker')" style="background:var(--warning); color:black;">💎 VIP (Үнемі көріну)</button>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
@@ -133,25 +142,45 @@
     }
 
     // SERVER LOGIC
+      // 1. ПАЙДАЛАНУШЫ ОНЛАЙН ЕКЕНІН СЕРВЕРГЕ БІЛДІРУ (ӘР 30 СЕКУНД САЙЫН)
+    setInterval(() => {
+        fetch(API + '/user-ping', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ token: myToken })
+        });
+    }, 30000);
+
+    // 2. ЖАРИЯЛАУ ФУНКЦИЯСЫН ӨЗГЕРТУ (ТЕГІН ЖАРИЯЛАУ)
     function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        if(!d.phone) return alert("Телефон толтырылмады!");
-
         navigator.geolocation.getCurrentPosition(p => {
             d.lat = p.coords.latitude; d.lon = p.coords.longitude; d.device_token = myToken;
+            
             fetch(API + path, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(d)
             }).then(() => {
-                alert("Жіберілді! Админ тексеріп, картаға шығарады.");
+                alert("Жарияланды! Сіз онлайн болғанда картада көрінесіз. Үнемі көріну үшін ақылы тарифті таңдаңыз.");
                 loadMarkers();
             });
-        }, () => alert("GPS рұқсатын беріңіз!"));
+        });
+    }
+
+    // 3. АҚЫЛЫ ТАРИФТІ ТАҢДАУ (VIP КҮЙІ)
+    function initVIP(type) {
+        const phone = document.getElementById(type === 'worker' ? 'w_phone' : 'g_phone').value;
+        if (!phone) return alert("Алдымен мәліметтерді толтырыңыз!");
+        
+        // Мұнда Kaspi/Halyk нұсқаулығын көрсетіп, saveItem шақырамыз
+        // Бірақ Админ оны тексеріп, is_active = true қылғанда, ол адам ОФФЛАЙН болса да картада қалады.
+        saveItem(type);
+        alert("Төлем жасасаңыз, хабарлама 24 сағат бойы картадан жоғалмайды!");
     }
 
     function loadMarkers() {
