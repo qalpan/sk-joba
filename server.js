@@ -61,23 +61,45 @@ async function initDB() {
 initDB();
 
 // --- ЖАЛПЫ МӘЛІМЕТТЕРДІ АЛУ (КАРТА ҮШІН) ---
+// server.js ішіндегі өзгерістер
+
+// 1. Онлайн қолданушыларды бақылау
+let onlineUsers = new Set();
+
+// Socket.io немесе қарапайым "ping" жүйесін қолдануға болады, 
+// бірақ біз қарапайым болу үшін статус жіберуді қолданамыз.
+app.post('/user-ping', (req, res) => {
+    const { token } = req.body;
+    onlineUsers.add(token);
+    // 30 секундтан кейін онлайн тізімінен өшіру (егер қайта ping келмесе)
+    setTimeout(() => onlineUsers.delete(token), 35000);
+    res.json({ success: true });
+});
+
 app.get('/get-all', async (req, res) => {
     try {
-        // Ескірген жарнамаларды автоматты түрде өшіру
-        await pool.query("DELETE FROM workers WHERE expires_at < NOW()");
-        await pool.query("DELETE FROM goods WHERE expires_at < NOW()");
+        // АВТОМАТТЫ ӨШІРУ: Барлық хабарламалар 24 сағаттан кейін жойылады
+        await pool.query("DELETE FROM workers WHERE created_at < NOW() - interval '24 hours'");
+        await pool.query("DELETE FROM goods WHERE created_at < NOW() - interval '24 hours'");
         await pool.query("DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'");
         
-        const w = await pool.query('SELECT * FROM workers'); // Админ бәрін көруі үшін
+        // Базадан бәрін алу
+        const w = await pool.query('SELECT * FROM workers');
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
         
-        res.json({ workers: w.rows, goods: g.rows, orders: o.rows });
-    } catch (err) { 
-        res.status(500).json({error: err.message}); 
-    }
-});
+        // СҮЗГІ: Тек онлайн адамдар немесе ақылы (is_active) адамдарды жіберу
+        const filterOnline = (list) => list.filter(item => 
+            item.is_active === true || onlineUsers.has(item.device_token)
+        );
 
+        res.json({ 
+            workers: filterOnline(w.rows), 
+            goods: filterOnline(g.rows), 
+            orders: o.rows // Тапсырыстар әрқашан көрінеді
+        });
+    } catch (err) { res.status(500).json({error: err.message}); }
+});
 // --- САҚТАУ МАРШРУТТАРЫ ---
 app.post('/save-worker', async (req, res) => {
     try {
