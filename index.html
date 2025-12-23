@@ -264,25 +264,44 @@ function loadMarkers() {
         });
     }
 
-    function saveItem(type) {
-        let d = {}, path = '';
-        if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone')}; }
-        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone')}; }
-        if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
+// index.html ішіндегі функциялар
 
-        if(!d.phone) return alert("Телефон нөмірін жазыңыз!");
+function saveItem(type, isVIP = false) {
+    let d = {}, path = '';
+    if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone')}; }
+    if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone')}; }
+    if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        navigator.geolocation.getCurrentPosition(p => {
-            d.lat = p.coords.latitude; d.lon = p.coords.longitude; d.device_token = myToken;
-            fetch(API + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(d) })
-            .then(() => { alert("Сәтті жарияланды!"); loadMarkers(); });
-        }, () => alert("GPS рұқсатын беріңіз!"));
+    if(!d.phone) return alert("Телефон нөмірін жазыңыз!");
+
+    navigator.geolocation.getCurrentPosition(p => {
+        d.lat = p.coords.latitude; 
+        d.lon = p.coords.longitude; 
+        d.device_token = myToken;
+        d.is_vip = isVIP; // VIP екенін белгілейміз
+
+        fetch(API + path, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify(d) 
+        })
+        .then(() => { 
+            if(isVIP) {
+                alert("Өтінім жіберілді! Төлем расталған соң (5-10 мин) хабарламаңыз картада пайда болады.");
+            } else {
+                alert("Сәтті жарияланды! (Ескерту: Тегін хабарлама тек сіз онлайн болғанда көрінеді)");
+            }
+            loadMarkers(); 
+        });
+    }, () => alert("GPS рұқсатын беріңіз!"));
+}
+
+function initVIP(type) {
+    const confirmPayment = confirm("VIP СТАТУС (490₸).\nKaspi: 87017398309 (Админ: С.К.)\n\nТөлем жасасаңыз 'ОК' басыңыз. Хабарламаңыз тексеруге жіберіледі.");
+    if(confirmPayment) {
+        saveItem(type, true);
     }
-
-    function initVIP(type) {
-        alert("VIP СТАТУС (490₸). Kaspi: 87017398309. Төлемнен соң Админ қосады.");
-        saveItem(type);
-    }
+}
 
     function renderAdmin() {
         if(!adminData) return;
