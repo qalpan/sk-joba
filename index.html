@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Fixed Version</title>
+    <title>SK-Joba | Live Map</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
@@ -16,27 +16,34 @@
         .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .marker-label { background: white; border: 1px solid #007bff; border-radius: 4px; padding: 2px 5px; font-size: 11px; font-weight: bold; white-space: nowrap; }
-        .gpay-container { margin-top: 10px; display: none; text-align: center; }
+        
+        /* Маркердің үстіндегі әрқашан көрінетін жазу */
+        .marker-label {
+            background: white; border: 1px solid #007bff; border-radius: 4px;
+            padding: 2px 5px; font-size: 11px; font-weight: bold; color: #333;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap;
+        }
+        
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
         .admin-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
         .admin-tabs button { flex: 1; background: #6c757d; font-size: 11px; padding: 10px 5px; }
         .admin-tabs button.active { background: #007bff; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .gpay-container { margin-top: 10px; display: none; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу..." oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу (Қызмет, Тауар, Тапсырыс)..." oninput="filterMarkers()">
 </div>
 
 <div id="map"></div>
 
 <div id="admin-modal">
     <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3>Админ Панель</h3>
+        <h3>Басқару панелі</h3>
         <button onclick="window.location.hash=''" style="background:red; width:70px;">Жабу</button>
     </div>
     <div class="admin-tabs">
@@ -57,6 +64,7 @@
         <div id="gpay-worker" class="gpay-container"></div>
         <button id="btn-worker" onclick="initGPay('worker')">Google Pay-мен төлеу</button>
     </div>
+
     <div class="card">
         <h4>📦 Тауар</h4>
         <input id="g_name" placeholder="Сатушы аты">
@@ -67,6 +75,7 @@
         <div id="gpay-good" class="gpay-container"></div>
         <button id="btn-good" onclick="initGPay('good')" style="background:#ffc107; color:black;">Google Pay-мен төлеу</button>
     </div>
+
     <div class="card">
         <h4>📋 Тапсырыс (Тегін)</h4>
         <input id="c_name" placeholder="Атыңыз">
@@ -80,7 +89,6 @@
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
 <script>
-    // БАРЛЫҚ ФУНКЦИЯЛАР ОСЫНДА АНЫҚТАЛУЫ КЕРЕК
     const API = "https://sk-joba.onrender.com";
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
@@ -88,47 +96,39 @@
     // КАРТА
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // Spiderfy (бірінің астындағыларды жаю)
     const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true });
     map.addLayer(markersGroup);
+
     setTimeout(() => map.invalidateSize(), 500);
 
     let rawData = [];
     let paymentsClient = null;
 
-    // Google Pay функциялары
+    // Google Pay
     function onGooglePayLoaded() {
-        console.log("GPay Loaded");
         paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
     }
 
     function initGPay(type) {
-        if(!paymentsClient) return alert("Google Pay әлі жүктелмеді. Күте тұрыңыз немесе AdBlock өшіріңіз.");
-        const phone = v(type === 'worker' ? 'w_phone' : 'g_phone');
-        if(!phone) return alert("Телефон нөмірін толтырыңыз!");
+        if (!paymentsClient) return alert("Google Pay жүктелмеді. AdBlock-ты өшіріңіз.");
+        const phoneField = type === 'worker' ? 'w_phone' : 'g_phone';
+        if (!document.getElementById(phoneField).value) return alert("Телефон нөмірін жазыңыз!");
 
         document.getElementById(`btn-${type}`).style.display = 'none';
         const container = document.getElementById(`gpay-${type}`);
         container.style.display = 'block';
-
         const button = paymentsClient.createButton({ onClick: () => processGPay(type) });
         container.innerHTML = '';
         container.appendChild(button);
     }
 
     function processGPay(type) {
-        const amount = v(type === 'worker' ? 'w_dur' : 'g_dur') === "1" ? "49.00" : "490.00";
-        paymentsClient.loadPaymentData({
-            apiVersion: 2, apiVersionMinor: 0,
-            allowedPaymentMethods: [{
-                type: 'CARD',
-                parameters: { allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"], allowedCardNetworks: ["VISA", "MASTERCARD"] },
-                tokenizationSpecification: { type: 'PAYMENT_GATEWAY', parameters: { 'gateway': 'example', 'gatewayMerchantId': 'exampleId' } }
-            }],
-            transactionInfo: { totalPriceStatus: 'FINAL', totalPrice: amount, currencyCode: 'KZT', countryCode: 'KZ' },
-            merchantInfo: { merchantName: 'SK-Joba' }
-        }).then(() => saveItem(type)).catch(() => location.reload());
+        saveItem(type); // Тест үшін бірден сақтаймыз
     }
 
+    // ДЕРЕКТЕРДІ ЖҮКТЕУ
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             rawData = [
@@ -138,19 +138,33 @@
             ];
             filterMarkers();
             if(document.getElementById('admin-modal').style.display === 'block') renderAdmin(currentFilter);
-        }).catch(e => console.error("Data error:", e));
+        });
     }
 
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
+
         rawData.forEach(i => {
             if ((i.is_active || i.type === 'order') && (i.info.toLowerCase().includes(term) || term === "")) {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                const icon = L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;"></div>`, className: '' });
+                const icon = L.divIcon({
+                    html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;"></div>`,
+                    className: ''
+                });
+                
                 const m = L.marker([i.lat, i.lon], {icon});
-                m.bindPopup(`${i.info}<br>${i.phone}`);
-                m.bindTooltip(i.info, { permanent: true, direction: 'top', className: 'marker-label', offset: [0, -10] });
+                
+                // --- ӨШІРУ БАТЫРМАСЫ ЛОГИКАСЫ ---
+                // Егер хабарламаның device_token-і қолданушының token-іне тең болса ғана батырма шығады
+                const canDelete = (i.device_token === myToken);
+                const delBtn = canDelete ? `<br><button onclick="delItem(${i.id},'${i.type}')" style="background:red;color:white;margin-top:5px;padding:3px;font-size:10px;">Өшіру ❌</button>` : "";
+                
+                m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br>${i.phone}${delBtn}`);
+                
+                // Әрқашан көрінетін жазу (Tooltip)
+                m.bindTooltip(i.info.substring(0,15), { permanent: true, direction: 'top', className: 'marker-label', offset: [0, -10] });
+                
                 markersGroup.addLayer(m);
             }
         });
@@ -161,23 +175,37 @@
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
+
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
             .then(() => { alert("Жіберілді!"); loadMarkers(); });
-        }, () => alert("GPS қосыңыз!"));
+        });
     }
 
+    function delItem(id, type) {
+        if(!confirm("Өшіресіз бе?")) return;
+        fetch(API+'/delete-item', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({id, type, token: myToken})
+        }).then(() => loadMarkers());
+    }
+
+    // АДМИН ПАНЕЛЬ СҮЗГІСІ
     let currentFilter = 'pending';
     function renderAdmin(filter) {
         currentFilter = filter;
         document.querySelectorAll('.admin-tabs button').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + filter).classList.add('active');
-        let filtered = (filter==='pending') ? rawData.filter(i=>!i.is_active && i.type!=='order') : (filter==='active' ? rawData.filter(i=>i.is_active||i.type==='order') : rawData);
-        let h = `<table><tr><th>Инфо</th><th>Әрекет</th></tr>`;
+
+        let filtered = (filter === 'pending') ? rawData.filter(i => !i.is_active && i.type !== 'order') : 
+                       (filter === 'active') ? rawData.filter(i => i.is_active || i.type === 'order') : rawData;
+
+        let h = `<table><tr><th>Түрі</th><th>Инфо</th><th>Әрекет</th></tr>`;
         filtered.forEach(i => {
-            const btn = (!i.is_active && i.type!=='order') ? `<button onclick="act(${i.id},'${i.type}')">✅</button>` : `<span>OK</span>`;
-            h += `<tr><td>${i.info}</td><td>${btn}</td></tr>`;
+            const btn = (!i.is_active && i.type !== 'order') ? `<button onclick="act(${i.id},'${i.type}')">✅ Қосу</button>` : `<span>Белсенді</span>`;
+            h += `<tr><td>${i.type}</td><td>${i.info}</td><td>${btn}</td></tr>`;
         });
         document.getElementById('admin-content').innerHTML = h + "</table>";
     }
@@ -188,7 +216,7 @@
 
     function v(id){ return document.getElementById(id).value.trim(); }
     window.onhashchange = () => {
-        if(location.hash === "#admin777" && prompt("Пароль:") === "admin777") {
+        if(location.hash === "#admin777" && prompt("Құпия сөз:") === "admin777") {
             document.getElementById('admin-modal').style.display='block'; renderAdmin('pending');
         } else { document.getElementById('admin-modal').style.display='none'; }
     };
