@@ -3,97 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Live Map</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-    <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 45vh; width: 100%; border-bottom: 2px solid #007bff; background: #eee; }
-        .search-box { padding: 10px; background: white; text-align: center; }
-        .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; outline: none; }
-        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        
-        /* Маркердің үстіндегі әрқашан көрінетін жазу */
-        .marker-label {
-            background: white; border: 1px solid #007bff; border-radius: 4px;
-            padding: 2px 5px; font-size: 11px; font-weight: bold; color: #333;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap;
-        }
-        
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
-        .admin-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
-        .admin-tabs button { flex: 1; background: #6c757d; font-size: 11px; padding: 10px 5px; }
-        .admin-tabs button.active { background: #007bff; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .gpay-container { margin-top: 10px; display: none; text-align: center; }
-    </style>
-</head>
-<body>
-
-<div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу (Қызмет, Тауар, Тапсырыс)..." oninput="filterMarkers()">
-</div>
-
-<div id="map"></div>
-
-<div id="admin-modal">
-    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3>Басқару панелі</h3>
-        <button onclick="window.location.hash=''" style="background:red; width:70px;">Жабу</button>
-    </div>
-    <div class="admin-tabs">
-        <button id="tab-pending" onclick="renderAdmin('pending')" class="active">⏳ Кезекте</button>
-        <button id="tab-active" onclick="renderAdmin('active')">✅ Белсенді</button>
-        <button id="tab-all" onclick="renderAdmin('all')">📊 Барлығы</button>
-    </div>
-    <div id="admin-content"></div>
-</div>
-
-<div class="container">
-    <div class="card">
-        <h4>👷 Қызмет</h4>
-        <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
-        <input id="w_phone" placeholder="Телефон">
-        <select id="w_dur"><option value="1">1 сағат — 49₸</option><option value="24">1 тәулік — 490₸</option></select>
-        <div id="gpay-worker" class="gpay-container"></div>
-        <button id="btn-worker" onclick="initGPay('worker')">Google Pay-мен төлеу</button>
-    </div>
-
-    <div class="card">
-        <h4>📦 Тауар</h4>
-        <input id="g_name" placeholder="Сатушы аты">
-        <input id="g_prod" placeholder="Тауар атауы">
-        <input id="g_price" placeholder="Бағасы">
-        <input id="g_phone" placeholder="Телефон">
-        <select id="g_dur"><option value="1">1 сағат — 49₸</option><option value="24">1 тәулік — 490₸</option></select>
-        <div id="gpay-good" class="gpay-container"></div>
-        <button id="btn-good" onclick="initGPay('good')" style="background:#ffc107; color:black;">Google Pay-мен төлеу</button>
-    </div>
-
-    <div class="card">
-        <h4>📋 Тапсырыс (Тегін)</h4>
-        <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
-        <input id="c_phone" placeholder="Телефон">
-        <button onclick="saveItem('order')" style="background:#28a745;">Жариялау</button>
-    </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-
-<!DOCTYPE html>
-<html lang="kk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Unified Version</title>
+    <title>SK-Joba | Unified Map</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
@@ -101,7 +11,7 @@
         :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f7f6; }
         #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
-        .search-box { padding: 10px; background: white; text-align: center; sticky: top; z-index: 1000; }
+        .search-box { padding: 10px; background: white; text-align: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; }
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid var(--primary); }
@@ -109,18 +19,19 @@
         button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
         button:hover { opacity: 0.8; }
         
-        /* Төлем нұсқаулығы стилі */
-        .payment-info { display: none; background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
-        .payment-info b { color: #856404; }
+        .payment-info { background: #fff3cd; border: 1px solid #ffeeba; padding: 12px; border-radius: 8px; font-size: 13px; margin-top: 10px; color: #856404; }
+        .gpay-container { margin-top: 10px; display: none; min-height: 40px; }
 
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10000; padding:20px; overflow-y:auto; }
-        .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: bold; }
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10001; padding:20px; overflow-y:auto; }
+        .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: bold; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
     </style>
 </head>
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу (Мамандық, тауар...)" oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу (Мамандық, тауар, тапсырыс...)" oninput="filterMarkers()">
 </div>
 
 <div id="map"></div>
@@ -129,51 +40,49 @@
     <div class="card" style="border-top-color: var(--primary);">
         <h4>👷 Қызмет жариялау</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық (мысалы: Сантехник)">
-        <input id="w_phone" placeholder="Телефон нөмірі">
-        <select id="w_dur" onchange="updatePayInfo('worker')">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="Телефон">
+        <select id="w_dur">
             <option value="1">1 сағат — 49₸</option>
             <option value="24">1 тәулік — 490₸</option>
         </select>
-        <div id="pay-manual-worker" class="payment-info">
-            <b>Төлем нұсқаулығы:</b><br>
-            Kaspi/Halyk: 87017398309 (Аты-жөні)<br>
-            Төлем жасап, "Жариялау" батырмасын басыңыз. Админ тексеріп қосады.
+        <div class="payment-info">
+            <b>Kaspi/Halyk:</b> 87017398309<br>Төлеп, төмендегі батырманы басыңыз.
         </div>
-        <button onclick="handleSubmission('worker')">Жариялау</button>
+        <div id="gpay-worker" class="gpay-container"></div>
+        <button id="btn-worker" onclick="initGPay('worker')">Жариялау (Төлемнен кейін)</button>
     </div>
 
     <div class="card" style="border-top-color: var(--warning);">
         <h4>📦 Тауар сату</h4>
         <input id="g_name" placeholder="Сатушы аты">
         <input id="g_prod" placeholder="Тауар атауы">
-        <input id="g_price" placeholder="Бағасы (₸)">
-        <input id="g_phone" placeholder="Телефон нөмірі">
-        <select id="g_dur" onchange="updatePayInfo('good')">
+        <input id="g_price" placeholder="Бағасы">
+        <input id="g_phone" placeholder="Телефон">
+        <select id="g_dur">
             <option value="1">1 сағат — 49₸</option>
             <option value="24">1 тәулік — 490₸</option>
         </select>
-        <div id="pay-manual-good" class="payment-info">
-            <b>Төлем нұсқаулығы:</b><br>
-            Kaspi/Halyk: 87017398309 (Аты-жөні)<br>
-            Төлемнен кейін "Жариялау" басыңыз.
+        <div class="payment-info">
+            <b>Kaspi/Halyk:</b> 87017398309<br>Төлеп, төмендегі батырманы басыңыз.
         </div>
-        <button style="background: var(--warning); color: black;" onclick="handleSubmission('good')">Жариялау</button>
+        <div id="gpay-good" class="gpay-container"></div>
+        <button id="btn-good" onclick="initGPay('good')" style="background: var(--warning); color: black;">Жариялау (Төлемнен кейін)</button>
     </div>
 
     <div class="card" style="border-top-color: var(--success);">
         <h4>📋 Тапсырыс беру (Тегін)</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не қажет? (мысалы: Маған жүк тасушы керек)"></textarea>
+        <textarea id="c_desc" placeholder="Не қажет?"></textarea>
         <input id="c_phone" placeholder="Телефон">
-        <button style="background: var(--success);" onclick="handleSubmission('order')">Тегін жариялау</button>
+        <button style="background: var(--success);" onclick="saveItem('order')">Тегін жариялау</button>
     </div>
 </div>
 
 <div id="admin-modal">
     <div style="display:flex; justify-content: space-between; align-items: center;">
-        <h2>Админ Панель</h2>
-        <button onclick="location.hash=''" style="width:100px; background:red;">Жабу</button>
+        <h2>Басқару панелі</h2>
+        <button onclick="location.hash=''" style="width:80px; background:red;">Жабу</button>
     </div>
     <div id="admin-content"></div>
 </div>
@@ -186,27 +95,51 @@
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // КАРТА ОРНАТУ
+    // КАРТА
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
     let rawData = [];
+    let paymentsClient = null;
 
-    // Төлем ақпаратын көрсету
-    function updatePayInfo(type) {
-        document.getElementById(`pay-manual-${type}`).style.display = 'block';
+    // GOOGLE PAY LOGIC
+    window.onGooglePayLoaded = function() {
+        try {
+            paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
+        } catch(e) { console.error("GPay Error", e); }
+    };
+
+    function initGPay(type) {
+        const phone = document.getElementById(type === 'worker' ? 'w_phone' : 'g_phone').value;
+        if (!phone) return alert("Телефон нөмірін жазыңыз!");
+
+        if (!paymentsClient) {
+            // Google Pay бұғатталған болса, бірден серверге жіберу (Админ тексеруі үшін)
+            saveItem(type);
+            return;
+        }
+
+        const container = document.getElementById(`gpay-${type}`);
+        container.style.display = 'block';
+        document.getElementById(`btn-${type}`).style.display = 'none';
+        
+        const button = paymentsClient.createButton({ 
+            onClick: () => saveItem(type) 
+        });
+        container.innerHTML = '';
+        container.appendChild(button);
     }
 
-    // Мәліметтерді серверге жіберу
-    function handleSubmission(type) {
+    // SERVER LOGIC
+    function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        if(!d.phone) return alert("Телефон нөмірін жазыңыз!");
+        if(!d.phone) return alert("Телефон толтырылмады!");
 
         navigator.geolocation.getCurrentPosition(p => {
             d.lat = p.coords.latitude; d.lon = p.coords.longitude; d.device_token = myToken;
@@ -215,13 +148,12 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(d)
             }).then(() => {
-                alert("Өтінім жіберілді! Төлем расталған соң админ картаға шығарады.");
+                alert("Жіберілді! Админ тексеріп, картаға шығарады.");
                 loadMarkers();
             });
-        }, () => alert("GPS қосыңыз!"));
+        }, () => alert("GPS рұқсатын беріңіз!"));
     }
 
-    // КАРТАНЫ ЖАҢАРТУ
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             rawData = [
@@ -238,64 +170,55 @@
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
         rawData.forEach(i => {
-            if ((i.is_active || i.type === 'order') && (i.info.toLowerCase().includes(term))) {
+            if ((i.is_active || i.type === 'order') && (i.info.toLowerCase().includes(term) || term === "")) {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ html: `<div style="background:${color};width:15px;height:15px;border-radius:50%;border:2px solid white;"></div>`, className: '' })
+                    icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;"></div>`, className: '' })
                 });
                 
-                const delBtn = (i.device_token === myToken) ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; padding:5px; font-size:10px;">Өшіру</button>` : "";
+                const delBtn = (i.device_token === myToken) ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; padding:3px; font-size:10px; width:auto;">Өшіру ❌</button>` : "";
                 
-                m.bindPopup(`<b>${i.info}</b><br>Тел: ${i.phone}${delBtn}`);
-                m.bindTooltip(i.info, { permanent: true, direction: 'top', className: 'marker-label' });
+                m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br>${i.phone}${delBtn}`);
+                m.bindTooltip(i.info.substring(0,15), { permanent: true, direction: 'top', className: 'marker-label' });
                 markersGroup.addLayer(m);
             }
         });
     }
 
     function deleteItem(id, type) {
-        if(confirm("Өшіруді растайсыз ба?")) {
-            fetch(API + '/delete-item', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id, type, token: myToken})
-            }).then(() => loadMarkers());
-        }
-    }
-
-    // АДМИН ЛОГИКАСЫ
-    function renderAdmin() {
-        let h = `<table border="1" style="width:100%; border-collapse: collapse; margin-top:20px;">
-                    <tr><th>Аты</th><th>Телефон</th><th>Күйі</th><th>Әрекет</th></tr>`;
-        rawData.forEach(i => {
-            const status = i.is_active ? "✅" : "⏳ Күтуде";
-            const action = !i.is_active ? `<button onclick="activate(${i.id}, '${i.type}')">Қосу</button>` : `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red;">Өшіру</button>`;
-            h += `<tr><td>${i.name || 'Аноним'}</td><td>${i.phone}</td><td>${status}</td><td>${action}</td></tr>`;
-        });
-        document.getElementById('admin-content').innerHTML = h + `</table>`;
-    }
-
-    function activate(id, type) {
-        fetch(API + '/admin/activate', {
+        if(!confirm("Өшіруді растайсыз ба?")) return;
+        fetch(API + '/delete-item', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id, type})
+            body: JSON.stringify({id, type, token: myToken})
         }).then(() => loadMarkers());
     }
 
-    function v(id){ return document.getElementById(id).value.trim(); }
+    function renderAdmin() {
+        let h = `<table><tr><th>Түрі</th><th>Инфо</th><th>Күйі</th><th>Әрекет</th></tr>`;
+        rawData.forEach(i => {
+            const status = i.is_active ? "Белсенді" : "Күтуде";
+            const btn = !i.is_active ? `<button onclick="activate(${i.id},'${i.type}')">✅ Қосу</button>` : `<button style="background:red" onclick="deleteItem(${i.id},'${i.type}')">❌ Өшіру</button>`;
+            h += `<tr><td>${i.type}</td><td>${i.info}</td><td>${status}</td><td>${btn}</td></tr>`;
+        });
+        document.getElementById('admin-content').innerHTML = h + "</table>";
+    }
 
+    function activate(id, type) {
+        fetch(API + '/admin/activate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, type}) }).then(() => loadMarkers());
+    }
+
+    function v(id){ return document.getElementById(id).value.trim(); }
+    
     window.onhashchange = () => {
-        if(location.hash === "#admin777") {
-            const p = prompt("Құпия сөз:");
-            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; renderAdmin(); }
+        if(location.hash === "#admin777" && prompt("Құпия сөз:") === "admin777") {
+            document.getElementById('admin-modal').style.display='block'; renderAdmin();
         } else { document.getElementById('admin-modal').style.display='none'; }
     };
 
     loadMarkers();
 </script>
-</body>
-</html>
+
 <script async src="https://pay.google.com/gp/p/js/pay.js" onload="onGooglePayLoaded()"></script>
 </body>
 </html>
