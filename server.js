@@ -74,16 +74,19 @@ app.get('/get-all', async (req, res) => {
 // САҚТАУ МАРШРУТТАРЫ
 app.post('/save-worker', async (req, res) => {
     try {
-        const { name, phone, job, lat, lon, device_token } = req.body;
-        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6)', [name, phone, job, lat, lon, device_token]);
+        const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
+        // Егер is_vip true болса да, біз оны әзірге FALSE деп сақтаймыз (Админ тексергенше)
+        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, $7)', 
+        [name, phone, job, lat, lon, device_token, false]); 
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 app.post('/save-goods', async (req, res) => {
     try {
-        const { name, product, price, phone, lat, lon, device_token } = req.body;
-        await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token) VALUES ($1,$2,$3,$4,$5,$6,$7)', [name, product, price, phone, lat, lon, device_token]);
+        const { name, product, price, phone, lat, lon, device_token, is_vip } = req.body;
+        await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, $8)', 
+        [name, product, price, phone, lat, lon, device_token, false]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
