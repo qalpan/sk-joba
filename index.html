@@ -50,7 +50,13 @@
 <div class="search-box">
     <input type="text" id="searchInput" placeholder="Іздеу (Мамандық, тауар, тапсырыс...)" oninput="filterMarkers(); updateVisibleList();">
 </div>
-
+<div class="search-box">
+    <input type="text" id="searchInput" placeholder="Іздеу..." oninput="filterMarkers(); updateVisibleList();">
+    <div style="margin-top: 10px;">
+        <button onclick="setMapStyle('color')" style="width: auto; padding: 5px 15px; background: var(--primary);">Түсті карта</button>
+        <button onclick="setMapStyle('mono')" style="width: auto; padding: 5px 15px; background: #666;">Ақ-қара карта</button>
+    </div>
+</div>
 <div id="map"></div>
 
 <div id="visible-list-container">
