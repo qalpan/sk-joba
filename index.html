@@ -33,7 +33,7 @@
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 5px solid var(--primary); }
         input, textarea, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
         button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .vip-btn { background: var(--warning); color: #ffc107; }
+        .vip-btn { background: var(--warning); color: black; }
         .payment-info { background: #fff3cd; padding: 10px; border-radius: 8px; font-size: 12px; color: #856404; margin-bottom: 10px; }
 
         .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); pointer-events: none; }
@@ -86,8 +86,8 @@
         <input id="g_price" placeholder="Бағасы">
         <input id="g_phone" placeholder="Телефон">
         <div class="payment-info">💎 VIP: Хабарламаңыз өшпейді.</div>
-        <button onclick="saveItem('good')" style="background:white; color:white;">Тегін жариялау</button>
-        <button class="vip-btn" onclick="initVIP('good')" style="background:white; color:white;">💎 VIP жариялау</button>
+        <button onclick="saveItem('good')" style="background:var(--warning); color:black;">Тегін жариялау</button>
+        <button class="vip-btn" onclick="initVIP('good')" style="background:black; color:white;">💎 VIP жариялау</button>
     </div>
 
 <div class="card" style="border-top-color: var(--success);">
