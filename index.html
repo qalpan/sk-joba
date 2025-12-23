@@ -213,37 +213,43 @@ function loadMarkers() {
         });
     }
 
-    function updateVisibleList() {
-        const bounds = map.getBounds();
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        let html = '';
-        let count = 0;
+function updateVisibleList() {
+    const bounds = map.getBounds();
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    let html = '';
+    let count = 0;
 
-        rawData.forEach(i => {
-            const loc = L.latLng(i.lat, i.lon);
-            if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
-                count++;
-                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                
-                let userAction = `<a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>`;
-                if (i.device_token === myToken) {
-                    userAction = `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; width:auto; padding:5px 10px; font-size:11px; margin:0; border:none; border-radius:15px;">Өшіру</button>`;
-                }
-
-                html += `
-                    <div class="list-item">
-                        <div class="list-info">
-                            <b style="color:${color}">${i.info}</b>
-                            <span>${i.name || i.seller_name || 'Клиент'} • ${i.type}</span>
-                        </div>
-                        ${userAction}
-                    </div>
-                `;
+    rawData.forEach(i => {
+        const loc = L.latLng(i.lat, i.lon);
+        if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
+            count++;
+            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+            
+            // --- ОСЫ ЖЕРГЕ ЖАҢА КОДТЫ ҚОЙДЫҚ ---
+            // Егер i.is_active true болса, ол VIP болып саналады
+            const isVIP = i.is_active === true; 
+            const vipClass = isVIP ? 'style="border: 2px solid #28a745; background: #fafffa; border-radius:10px; margin-bottom:5px;"' : '';
+            
+            let userAction = `<a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>`;
+            if (i.device_token === myToken) {
+                userAction = `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; width:auto; padding:5px 10px; font-size:11px; margin:0; border:none; border-radius:15px; cursor:pointer;">Өшіру</button>`;
             }
-        });
-        document.getElementById('item-count').innerText = count;
-        document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
-    }
+
+            html += `
+                <div class="list-item" ${vipClass}>
+                    <div class="list-info">
+                        <b style="color:${color}">${isVIP ? '⭐ VIP: ' : ''}${i.info}</b>
+                        <span>${i.name || i.seller_name || i.client_name || 'Пайдаланушы'} • ${i.type}</span>
+                    </div>
+                    ${userAction}
+                </div>
+            `;
+            // -----------------------------------
+        }
+    });
+    document.getElementById('item-count').innerText = count;
+    document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
+}
 
     // ЖАЛПЫ ӨШІРУ ФУНКЦИЯСЫ (Қосылды)
     function deleteItem(id, type, isAdmin = false) {
