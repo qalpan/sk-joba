@@ -59,32 +59,40 @@ app.get('/get-all', async (req, res) => {
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        const filteredWorkers = w.rows.filter(i => i.is_active || isOnline(i.device_token));
-        const filteredGoods = g.rows.filter(i => i.is_active || isOnline(i.device_token));
+        // КАРТА ҮШІН СҮЗГІ: Тек Админ мақұлдаған (is_active=true) хабарламаларды ғана көрсетеміз
+const filteredWorkers = w.rows.filter(i => i.is_active === true);
+const filteredGoods = g.rows.filter(i => i.is_active === true);
+const filteredOrders = o.rows.filter(i => i.is_active === true);
 
-        res.json({ 
-            workers: filteredWorkers, 
-            goods: filteredGoods, 
-            orders: o.rows,
-            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
-        });
+res.json({ 
+    workers: filteredWorkers, 
+    goods: filteredGoods, 
+    orders: filteredOrders,
+    admin_all: {
+        workers: w.rows, // Админ бәрін (мақұлданбағандарды да) көре береді
+        goods: g.rows,
+        orders: o.rows
+    }
+});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 // САҚТАУ МАРШРУТТАРЫ
+// Жұмысшыны сақтау
 app.post('/save-worker', async (req, res) => {
     try {
-        const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
-        // Егер is_vip true болса да, біз оны әзірге FALSE деп сақтаймыз (Админ тексергенше)
+        const { name, phone, job, lat, lon, device_token } = req.body;
+        // Мұнда соңында FALSE тұр - бұл Админ мақұлдағанша картада КӨРІНБЕЙДІ деген сөз
         await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, $7)', 
-        [name, phone, job, lat, lon, device_token, false]); 
+        [name, phone, job, lat, lon, device_token, false]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
+// Тауарды сақтау
 app.post('/save-goods', async (req, res) => {
     try {
-        const { name, product, price, phone, lat, lon, device_token, is_vip } = req.body;
+        const { name, product, price, phone, lat, lon, device_token } = req.body;
         await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, $8)', 
         [name, product, price, phone, lat, lon, device_token, false]);
         res.json({success: true});
