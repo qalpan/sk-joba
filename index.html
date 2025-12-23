@@ -11,7 +11,6 @@
         :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; --danger: #dc3545; --dark: #343a40; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f7f6; color: #333; }
         
-        /* SEARCH & STYLE PICKER */
         .header-box { padding: 15px; background: white; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
         .search-input { width: 90%; padding: 12px 20px; border-radius: 25px; border: 2px solid var(--primary); outline: none; font-size: 16px; margin-bottom: 10px; }
         
@@ -21,7 +20,6 @@
 
         #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
 
-        /* DYNAMIC LIST BELOW MAP */
         #visible-list-container { background: white; margin: 10px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
         .list-header { padding: 12px; background: #f8f9fa; border-bottom: 1px solid #eee; font-weight: bold; color: var(--dark); display: flex; justify-content: space-between; }
         #dynamic-list-content { max-height: 250px; overflow-y: auto; }
@@ -31,7 +29,6 @@
         .list-info span { font-size: 13px; color: #666; }
         .list-call { background: var(--success); color: white; padding: 8px 15px; border-radius: 20px; text-decoration: none; font-size: 12px; font-weight: bold; }
 
-        /* CARDS */
         .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 5px solid var(--primary); }
         input, textarea, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
@@ -39,10 +36,8 @@
         .vip-btn { background: var(--warning); color: black; }
         .payment-info { background: #fff3cd; padding: 10px; border-radius: 8px; font-size: 12px; color: #856404; margin-bottom: 10px; }
 
-        /* MARKER LABELS */
-        .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
+        .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); pointer-events: none; }
 
-        /* ADMIN */
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10001; padding:20px; overflow-y:auto; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
@@ -120,7 +115,6 @@
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // КАРТА ЖӘНЕ ҚАБАТТАР
     const map = L.map('map').setView([43.2389, 76.8897], 13);
     const layers = {
         color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
@@ -128,7 +122,12 @@
     };
     layers.color.addTo(map);
 
-    const markersGroup = L.markerClusterGroup();
+    // Spiderfy эффектісін қосамыз
+    const markersGroup = L.markerClusterGroup({
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+    });
     map.addLayer(markersGroup);
 
     let rawData = [];
@@ -143,7 +142,6 @@
         document.getElementById('btn-' + style).classList.add('active');
     }
 
-    // КАРТА ЖЫЛЖЫҒАНДА ТІЗІМДІ ЖАҢАРТУ
     map.on('moveend', updateVisibleList);
 
     function sendPing() {
@@ -166,65 +164,96 @@
         });
     }
 
-function filterMarkers() {
-    const term = document.getElementById('searchInput').value.toLowerCase();
-    markersGroup.clearLayers();
-    rawData.forEach(i => {
-        if (i.info.toLowerCase().includes(term)) {
-            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-            const m = L.marker([i.lat, i.lon], {
-                icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3)"></div>`, className: '' })
-            });
+    function filterMarkers() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        const isMobile = window.innerWidth < 768;
+        markersGroup.clearLayers();
 
-            // МІНЕ ОСЫ ЖЕРДЕ: Егер токен сәйкес келсе, Өшіру батырмасы шығады
-            let delBtn = "";
-            if (i.device_token === myToken) {
-                delBtn = `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; padding:5px; margin-top:10px; border-radius:5px; font-size:11px; width:auto;">Өз хабарламамды өшіру ❌</button>`;
-            }
+        rawData.forEach(i => {
+            if (i.info.toLowerCase().includes(term)) {
+                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+                const m = L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3)"></div>`, className: '' })
+                });
 
-            m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br><a href="tel:${i.phone}">${i.phone}</a>${delBtn}`);
-            
-            m.bindTooltip(i.info.substring(0,20), { 
-                permanent: true, direction: 'bottom', offset: [0, 10], className: 'marker-label' 
-            });
+                let delBtn = "";
+                if (i.device_token === myToken) {
+                    delBtn = `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; padding:8px; margin-top:10px; border:none; border-radius:5px; font-size:12px; width:100%; cursor:pointer;">Өз хабарламамды өшіру ❌</button>`;
+                }
 
-            markersGroup.addLayer(m);
-        }
-    });
-}
-
-function updateVisibleList() {
-    const bounds = map.getBounds();
-    const term = document.getElementById('searchInput').value.toLowerCase();
-    let html = '';
-    let count = 0;
-
-    rawData.forEach(i => {
-        const loc = L.latLng(i.lat, i.lon);
-        if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
-            count++;
-            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-            
-            // Өз хабарламасы болса, тізімде де "өшіру" тұрады
-            let userAction = `<a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>`;
-            if (i.device_token === myToken) {
-                userAction = `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; width:auto; padding:5px 10px; font-size:11px; margin:0;">Өшіру</button>`;
-            }
-
-            html += `
-                <div class="list-item">
-                    <div class="list-info">
-                        <b style="color:${color}">${i.info}</b>
-                        <span>${i.name || i.seller_name || 'Клиент'} • ${i.type}</span>
+                m.bindPopup(`
+                    <div style="min-width:160px;">
+                        <b>${i.type.toUpperCase()}</b><br>
+                        ${i.info}<br>
+                        <a href="tel:${i.phone}" style="display:block; background:var(--success); color:white; text-align:center; padding:8px; border-radius:5px; text-decoration:none; margin-top:5px;">📞 Қоңырау</a>
+                        ${delBtn}
                     </div>
-                    ${userAction}
-                </div>
-            `;
-        }
-    });
-    document.getElementById('item-count').innerText = count;
-    document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
-}
+                `, { autoPan: true, offset: [0, -5] });
+                
+                m.bindTooltip(i.info.substring(0,20), { 
+                    permanent: !isMobile, 
+                    direction: 'bottom', 
+                    offset: [0, 10], 
+                    className: 'marker-label' 
+                });
+
+                markersGroup.addLayer(m);
+            }
+        });
+    }
+
+    function updateVisibleList() {
+        const bounds = map.getBounds();
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        let html = '';
+        let count = 0;
+
+        rawData.forEach(i => {
+            const loc = L.latLng(i.lat, i.lon);
+            if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
+                count++;
+                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+                
+                let userAction = `<a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>`;
+                if (i.device_token === myToken) {
+                    userAction = `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; width:auto; padding:5px 10px; font-size:11px; margin:0; border:none; border-radius:15px;">Өшіру</button>`;
+                }
+
+                html += `
+                    <div class="list-item">
+                        <div class="list-info">
+                            <b style="color:${color}">${i.info}</b>
+                            <span>${i.name || i.seller_name || 'Клиент'} • ${i.type}</span>
+                        </div>
+                        ${userAction}
+                    </div>
+                `;
+            }
+        });
+        document.getElementById('item-count').innerText = count;
+        document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
+    }
+
+    // ЖАЛПЫ ӨШІРУ ФУНКЦИЯСЫ (Қосылды)
+    function deleteItem(id, type, isAdmin = false) {
+        if(!confirm("Нақты өшіресіз бе?")) return;
+        const tokenToSend = isAdmin ? 'admin777' : myToken;
+
+        fetch(API + '/delete-item', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({id: parseInt(id), type, token: tokenToSend}) 
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                alert("Өшірілді!");
+                loadMarkers();
+            } else {
+                alert("Қате: Өшіруге рұқсат жоқ.");
+            }
+        });
+    }
 
     function saveItem(type) {
         let d = {}, path = '';
@@ -256,8 +285,8 @@ function updateVisibleList() {
         ];
         list.forEach(i => {
             const status = i.is_active ? "<b style='color:green'>VIP</b>" : "Тегін";
-            const btn = `<button onclick="toggleActive(${i.id},'${i.t}', ${!i.is_active})" style="padding:4px; font-size:10px;">${i.is_active ? 'VIP Өшіру' : 'VIP Қосу'}</button>`;
-            const del = `<button onclick="deleteAdmin(${i.id},'${i.t}')" style="background:red; padding:4px; font-size:10px;">Жою</button>`;
+            const btn = `<button onclick="toggleActive(${i.id},'${i.t}', ${!i.is_active})" style="padding:4px; font-size:10px; background:var(--primary);">${i.is_active ? 'VIP Өшіру' : 'VIP Қосу'}</button>`;
+            const del = `<button onclick="deleteAdmin(${i.id},'${i.t}')" style="background:var(--danger); padding:4px; font-size:10px;">Жою</button>`;
             h += `<tr><td>${i.t}</td><td>${i.msg}</td><td>${status}</td><td>${btn} ${del}</td></tr>`;
         });
         document.getElementById('admin-content').innerHTML = h + "</table>";
@@ -268,8 +297,7 @@ function updateVisibleList() {
     }
 
     function deleteAdmin(id, type) {
-        if(!confirm("Нақты өшіресіз бе?")) return;
-        fetch(API + '/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, type, token: 'admin777'}) }).then(() => loadMarkers());
+        deleteItem(id, type, true);
     }
 
     function v(id){ return document.getElementById(id).value.trim(); }
