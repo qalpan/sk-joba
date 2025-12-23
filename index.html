@@ -90,13 +90,15 @@
         <button class="vip-btn" onclick="initVIP('good')" style="background:black; color:white;">💎 VIP жариялау</button>
     </div>
 
-    <div class="card" style="border-top-color: var(--success);">
-        <h4>📋 Тапсырыс беру (Тегін)</h4>
-        <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Көмек немесе тапсырыс сипаттамасы"></textarea>
-        <input id="c_phone" placeholder="Телефон">
-        <button style="background: var(--success);" onclick="saveItem('order')">Жариялау</button>
-    </div>
+<div class="card" style="border-top-color: var(--success);">
+    <h4>📋 Тапсырыс беру</h4>
+    <input id="c_name" placeholder="Атыңыз">
+    <textarea id="c_desc" placeholder="Көмек немесе тапсырыс сипаттамасы"></textarea>
+    <input id="c_phone" placeholder="Телефон">
+    <div class="payment-info">💎 VIP: Тапсырысыңыз тізімнің ең басында және ерекше түспен көрінеді.</div>
+    <button style="background: var(--success);" onclick="saveItem('order')">Тегін жариялау</button>
+    <button class="vip-btn" style="background: #28a745; color: white; border: 2px solid #1e7e34;" onclick="initVIP('order')">💎 VIP тапсырыс</button>
+</div>
 </div>
 
 <div id="admin-modal">
