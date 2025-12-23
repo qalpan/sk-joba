@@ -150,19 +150,28 @@
     setInterval(sendPing, 30000);
     sendPing();
 
-    function loadMarkers() {
-        fetch(API + '/get-all').then(r => r.json()).then(data => {
+function loadMarkers() {
+    fetch(API + '/get-all')
+        .then(r => r.json())
+        .then(data => {
             adminData = data.admin_all;
-            rawData = [
+            const newData = [
                 ...data.workers.map(i => ({...i, type: 'worker', info: i.job})),
                 ...data.goods.map(i => ({...i, type: 'good', info: i.product_name})),
                 ...data.orders.map(i => ({...i, type: 'order', info: i.description}))
             ];
-            filterMarkers();
-            updateVisibleList();
+
+            // Егер деректер өзгерген болса ғана картаны қайта сызамыз
+            if (JSON.stringify(rawData) !== JSON.stringify(newData)) {
+                rawData = newData;
+                filterMarkers();
+                updateVisibleList();
+            }
+            
             if(document.getElementById('admin-modal').style.display === 'block') renderAdmin();
-        });
-    }
+        })
+        .catch(err => console.error("Жаңарту қатесі:", err));
+}
 
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
@@ -311,6 +320,13 @@
     };
 
     loadMarkers();
+
+// Картаны әр 60 секунд сайын автоматты түрде жаңартып тұру
+setInterval(() => {
+    console.log("Деректер автоматты түрде жаңартылуда...");
+    loadMarkers(); 
+}, 60000); // 60000 мс = 1 минут
+    
 </script>
 </body>
 </html>
