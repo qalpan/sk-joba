@@ -3,73 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba | Төлем және Карта</title>
+    <title>SK-Joba | Live</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        #map { height: 50vh; width: 100%; border-bottom: 2px solid #007bff; background: #eee; }
-        .search-box { padding: 10px; background: white; text-align: center; }
-        .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid #007bff; outline: none; }
-        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, select, textarea, button { width: 100%; margin: 5px 0; padding: 12px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 14px; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #0056b3; }
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f0f2f5; }
+        #map { height: 45vh; width: 100%; border-bottom: 2px solid #007bff; background: #ddd; }
+        .search-box { padding: 15px; background: white; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .search-box input { width: 90%; padding: 15px; border-radius: 30px; border: 2px solid #007bff; outline: none; font-size: 16px; }
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        input, select, textarea { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #007bff; color: white; font-weight: bold; cursor: pointer; margin-top: 10px; }
         
-        /* Маркер үстіндегі тұрақты жазу стилі */
+        /* Маркер стилі */
         .marker-label {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #007bff;
-            border-radius: 4px;
-            padding: 2px 5px;
-            font-size: 11px;
-            font-weight: bold;
-            white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            background: white; border: 2px solid #007bff; border-radius: 5px;
+            padding: 2px 6px; font-weight: bold; font-size: 12px; white-space: nowrap;
         }
+
+        /* Google Pay Button Container */
+        .gpay-btn-container { margin-top: 10px; display: none; }
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
     </style>
 </head>
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу (Қызмет, Тауар, Тапсырыс)..." oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу: 'Қызмет', 'Тауар', 'Тапсырыс' немесе мамандық..." oninput="filterMarkers()">
 </div>
 
 <div id="map"></div>
 
-<div id="admin-modal">
-    <button onclick="window.location.hash=''" style="background:red; width:100px; color:white;">❌ Жабу</button>
-    <h2>Төлемдерді растау</h2>
-    <div id="admin-list"></div>
-</div>
-
 <div class="container">
-    <div class="card">
-        <h4>👷 Қызмет (Ақылы)</h4>
+    <div class="card" id="worker-card">
+        <h4>👷 Қызмет қосу</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық (мыс: Сантехник)">
-        <input id="w_phone" placeholder="Телефон (8700...)">
-        <select id="w_dur">
+        <input id="w_job" placeholder="Мамандық (мыс: Электрик)">
+        <input id="w_phone" placeholder="Телефон">
+        <select id="w_dur" onchange="updatePrice('worker')">
             <option value="1">1 сағат — 49₸</option>
             <option value="24">1 тәулік — 490₸</option>
         </select>
-        <button onclick="saveItem('worker')">Төлем жасап тіркелу</button>
+        <div id="gpay-worker" class="gpay-btn-container"></div>
+        <button id="btn-worker" onclick="showGPay('worker')">Төлем жасау (Google Pay)</button>
     </div>
 
-    <div class="card">
-        <h4>📦 Тауар (Ақылы)</h4>
+    <div class="card" id="good-card">
+        <h4>📦 Тауар жариялау</h4>
         <input id="g_name" placeholder="Сатушы аты">
-        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_prod" placeholder="Тауар атауы">
         <input id="g_price" placeholder="Бағасы">
         <input id="g_phone" placeholder="Телефон">
-        <select id="g_dur">
+        <select id="g_dur" onchange="updatePrice('good')">
             <option value="1">1 сағат — 49₸</option>
             <option value="24">1 тәулік — 490₸</option>
         </select>
-        <button onclick="saveItem('good')" style="background:#ffc107; color:black;">Төлем жасап жариялау</button>
+        <div id="gpay-good" class="gpay-btn-container"></div>
+        <button id="btn-good" onclick="showGPay('good')" style="background:#ffc107; color:black;">Төлем жасау (Google Pay)</button>
     </div>
 
     <div class="card">
@@ -81,26 +73,104 @@
     </div>
 </div>
 
+<div id="admin-modal">
+    <button onclick="window.location.hash=''" style="background:red; width:100px;">❌ Жабу</button>
+    <div id="admin-list"></div>
+</div>
+
+<script src="https://pay.google.com/gp/p/js/pay.js" async onload="onGooglePayLoaded()"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
 <script>
     const API = "https://sk-joba.onrender.com";
-    const KASPI_PHONE = "7017398309"; // Тек сандар
-    const ADMIN_EMAIL = "sk-joba@outlook.com";
-
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
+    // КАРТА
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
-    setTimeout(() => map.invalidateSize(), 500);
-
     let allData = { workers: [], goods: [], orders: [] };
 
-    function v(id){ return document.getElementById(id).value.trim(); }
+    // ІЗДЕУ ЖҮЙЕСІ (ТҮЗЕТІЛГЕН)
+    function filterMarkers() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        markersGroup.clearLayers();
+
+        allData.workers.forEach(w => {
+            if (query === "" || query === "қызмет" || w.job.toLowerCase().includes(query)) {
+                addM(w.lat, w.lon, `👷 ${w.job}<br>${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff');
+            }
+        });
+
+        allData.goods.forEach(g => {
+            if (query === "" || query === "тауар" || g.product_name.toLowerCase().includes(query)) {
+                addM(g.lat, g.lon, `📦 ${g.product_name}<br>${g.price}₸<br>${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107');
+            }
+        });
+
+        allData.orders.forEach(o => {
+            if (query === "" || query === "тапсырыс" || o.description.toLowerCase().includes(query)) {
+                addM(o.lat, o.lon, `📋 ${o.description}<br>${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745');
+            }
+        });
+    }
+
+    function addM(lat, lon, txt, mini, id, type, token, color) {
+        const icon = L.divIcon({ html: `<div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>`, className: '' });
+        const m = L.marker([lat, lon], { icon });
+        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;font-size:10px;padding:2px;">Өшіру</button>` : "";
+        m.bindPopup(txt + delBtn);
+        m.bindTooltip(mini, { permanent: true, direction: 'top', className: 'marker-label', offset: [0, -10] });
+        markersGroup.addLayer(m);
+    }
+
+    // GOOGLE PAY ЛОГИКАСЫ
+    let currentType = '';
+    const paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
+
+    function onGooglePayLoaded() {
+        console.log("GPay Loaded");
+    }
+
+    function showGPay(type) {
+        currentType = type;
+        const phone = type === 'worker' ? v('w_phone') : v('g_phone');
+        if(!phone) return alert("Алдымен деректерді толтырыңыз!");
+        
+        document.getElementById(`btn-${type}`).style.display = 'none';
+        const container = document.getElementById(`gpay-${type}`);
+        container.style.display = 'block';
+        
+        const button = paymentsClient.createButton({ onClick: () => processPayment(type) });
+        container.innerHTML = '';
+        container.appendChild(button);
+    }
+
+    function processPayment(type) {
+        const amount = (type === 'worker' ? document.getElementById('w_dur').value : document.getElementById('g_dur').value) === "1" ? "49.00" : "490.00";
+        
+        const paymentDataRequest = {
+            apiVersion: 2, apiVersionMinor: 0,
+            allowedPaymentMethods: [{
+                type: 'CARD',
+                parameters: { allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"], allowedCardNetworks: ["VISA", "MASTERCARD"] },
+                tokenizationSpecification: { type: 'PAYMENT_GATEWAY', parameters: { 'gateway': 'example', 'gatewayMerchantId': 'exampleId' } }
+            }],
+            transactionInfo: { totalPriceStatus: 'FINAL', totalPrice: amount, currencyCode: 'KZT', countryCode: 'KZ' },
+            merchantInfo: { merchantName: 'SK-Joba' }
+        };
+
+        paymentsClient.loadPaymentData(paymentDataRequest).then(data => {
+            console.log("Payment Success", data);
+            saveItem(type);
+        }).catch(err => alert("Төлем тоқтатылды немесе қате шықты."));
+    }
+
+    function v(id) { return document.getElementById(id).value.trim(); }
 
     function saveItem(type) {
         let d = {}, path = '';
@@ -108,41 +178,14 @@
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        if(!d.phone) return alert("Телефон нөмірін толтырыңыз!");
-
         navigator.geolocation.getCurrentPosition(p => {
             d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
-            
             fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
             .then(() => {
-                if(type === 'order') {
-                    alert("Тапсырыс сәтті жарияланды!");
-                } else {
-                    const amount = d.durationHours === "1" ? "49" : "490";
-                    
-                    // Клиентке түсінікті нұсқаулық
-                    const confirmPayment = confirm(
-                        `НҰСҚАУЛЫҚ:\n\n` +
-                        `1. Қазір Kaspi ашылады.\n` +
-                        `2. Нөмірге: ${KASPI_PHONE} соманы (${amount}₸) аударыңыз.\n` +
-                        `3. Төлемнен кейін Email арқылы чек жіберіңіз.\n\n` +
-                        `Kaspi-ге өтуді растайсыз ба?`
-                    );
-
-                    if(confirmPayment) {
-                        // Тікелей аударым бетіне сілтеме
-                        window.open(`https://kaspi.kz/pay/Transfer?phone=${KASPI_PHONE}`, '_blank');
-                        
-                        setTimeout(() => {
-                            const subject = encodeURIComponent(`SK-Joba Төлем: ${d.phone}`);
-                            const body = encodeURIComponent(`Сәлеметсіз бе! Төлем жасадым (${amount}₸). Менің нөмірім: ${d.phone}. Чек тіркелді.`);
-                            window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
-                        }, 5000);
-                    }
-                }
-                loadMarkers();
+                alert("Сәтті жарияланды!");
+                location.reload();
             });
-        }, () => alert("GPS-ті қосыңыз!"));
+        }, () => alert("GPS қосыңыз!"));
     }
 
     function loadMarkers() {
@@ -152,72 +195,6 @@
         });
     }
 
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        
-        allData.workers.forEach(w => { 
-            if(w.job.toLowerCase().includes(term)) addM(w.lat, w.lon, `👷 ${w.job}<br>Аты: ${w.name}<br>Тел: ${w.phone}`, w.job, w.id, 'worker', w.device_token, '#007bff'); 
-        });
-        allData.goods.forEach(g => { 
-            if(g.product_name.toLowerCase().includes(term)) addM(g.lat, g.lon, `📦 ${g.product_name}<br>Бағасы: ${g.price}₸<br>Тел: ${g.phone}`, g.product_name, g.id, 'good', g.device_token, '#ffc107'); 
-        });
-        allData.orders.forEach(o => { 
-            if(o.description.toLowerCase().includes(term)) addM(o.lat, o.lon, `📋 ${o.description}<br>Тел: ${o.phone}`, o.description, o.id, 'order', o.device_token, '#28a745'); 
-        });
-    }
-
-    function addM(lat, lon, txt, mini, id, type, token, color) {
-        // Динамикалық маркер (нүкте)
-        const icon = L.divIcon({
-            html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
-            className: ''
-        });
-        
-        const m = L.marker([lat, lon], {icon});
-        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;border:none;margin-top:5px;width:100%;padding:4px;font-size:10px;">Өшіру ❌</button>` : "";
-        
-        m.bindPopup(txt + delBtn);
-
-        // МИНИ-АҚПАРАТ (Әрқашан маркердің үстінде көрініп тұрады)
-        m.bindTooltip(mini, {
-            permanent: true, 
-            direction: 'top', 
-            offset: [0, -10],
-            className: 'marker-label'
-        });
-
-        markersGroup.addLayer(m);
-    }
-
-    function delItem(id, type, admin=false) {
-        if(!confirm("Бұл хабарландыруды өшіресіз бе?")) return;
-        fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token: admin ? 'ADMIN' : myToken})})
-        .then(() => admin ? loadAdmin() : loadMarkers());
-    }
-
-    window.onhashchange = () => {
-        if(location.hash === "#admin777") {
-            const p = prompt("Админ пароль:");
-            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; loadAdmin(); }
-        } else { document.getElementById('admin-modal').style.display='none'; }
-    };
-
-    function loadAdmin() {
-        fetch(API+'/admin/pending').then(r => r.json()).then(list => {
-            let h = `<table border="1" style="width:100%; border-collapse:collapse; font-size:12px;"><tr><th>Инфо</th><th>Ақысы</th><th>Әрекет</th></tr>`;
-            list.forEach(i => {
-                h += `<tr><td>${i.info}<br>${i.phone}</td><td style="color:red; font-weight:bold">${i.fee}</td><td><button onclick="act(${i.id},'${i.type}')">✅ Қос</button></td></tr>`;
-            });
-            document.getElementById('admin-list').innerHTML = list.length ? h + "</table>" : "Күтудегі төлемдер жоқ.";
-        });
-    }
-
-    function act(id, type) {
-        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadAdmin());
-    }
-
-    setInterval(loadMarkers, 30000);
     loadMarkers();
 </script>
 </body>
