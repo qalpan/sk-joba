@@ -131,3 +131,61 @@
         const icon = L.divIcon({
             html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>`,
             className: ''
+        });
+        const m = L.marker([lat, lon], {icon});
+        const delBtn = token === myToken ? `<br><button onclick="delItem(${id},'${type}')" style="background:red;color:white;padding:2px;font-size:10px;">Өшіру</button>` : "";
+        m.bindPopup(txt + delBtn);
+        m.bindTooltip(mini.substring(0,20), { permanent: true, direction: 'top', className: 'marker-label', offset: [0, -10] });
+        markersGroup.addLayer(m);
+    }
+
+    // АДМИН СҮЗГІЛЕУІ
+    let currentFilter = 'pending';
+    function renderAdmin(filter) {
+        currentFilter = filter;
+        document.querySelectorAll('.admin-tabs button').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + filter).classList.add('active');
+
+        let filtered = [];
+        if (filter === 'pending') filtered = rawData.filter(i => !i.is_active && i.type !== 'order');
+        else if (filter === 'active') filtered = rawData.filter(i => i.is_active || i.type === 'order');
+        else filtered = rawData;
+
+        let h = `<table><tr><th>Түрі</th><th>Инфо</th><th>Әрекет</th></tr>`;
+        filtered.forEach(i => {
+            const btn = (!i.is_active && i.type !== 'order') ? `<button onclick="act(${i.id},'${i.type}')" style="background:green;padding:5px;">✅ Қос</button>` : `<span>Белсенді</span>`;
+            h += `<tr><td>${i.type}</td><td>${i.info}<br>${i.phone}</td><td>${btn}</td></tr>`;
+        });
+        document.getElementById('admin-content').innerHTML = filtered.length ? h + "</table>" : "<p>Тізім бос.</p>";
+    }
+
+    function saveItem(type) {
+        let d = {}, path = '';
+        if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone'), durationHours:v('w_dur')}; }
+        if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone'), durationHours:v('g_dur')}; }
+        if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
+
+        navigator.geolocation.getCurrentPosition(p => {
+            d.lat=p.coords.latitude; d.lon=p.coords.longitude; d.device_token=myToken;
+            fetch(API+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)})
+            .then(() => { alert("Жіберілді!"); loadMarkers(); });
+        }, () => alert("GPS қосыңыз!"));
+    }
+
+    function act(id, type) {
+        fetch(API+'/admin/activate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type})}).then(() => loadMarkers());
+    }
+
+    function v(id){ return document.getElementById(id).value.trim(); }
+
+    window.onhashchange = () => {
+        if(location.hash === "#admin777") {
+            const p = prompt("Пароль:");
+            if(p === "admin777") { document.getElementById('admin-modal').style.display='block'; renderAdmin('pending'); }
+        } else { document.getElementById('admin-modal').style.display='none'; }
+    };
+
+    loadMarkers();
+</script>
+</body>
+</html>
