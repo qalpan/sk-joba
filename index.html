@@ -163,56 +163,65 @@
         });
     }
 
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        rawData.forEach(i => {
-            if (i.info.toLowerCase().includes(term)) {
-                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3)"></div>`, className: '' })
-                });
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    rawData.forEach(i => {
+        if (i.info.toLowerCase().includes(term)) {
+            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+            const m = L.marker([i.lat, i.lon], {
+                icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.3)"></div>`, className: '' })
+            });
 
-                m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br><a href="tel:${i.phone}">${i.phone}</a>`);
-                
-                // ТҰРАҚТЫ ЖАЗУ (ALWAYS VISIBLE TOOLTIP)
-                m.bindTooltip(i.info.substring(0,20), { 
-                    permanent: true, 
-                    direction: 'bottom', 
-                    offset: [0, 10], 
-                    className: 'marker-label' 
-                });
-
-                markersGroup.addLayer(m);
+            // МІНЕ ОСЫ ЖЕРДЕ: Егер токен сәйкес келсе, Өшіру батырмасы шығады
+            let delBtn = "";
+            if (i.device_token === myToken) {
+                delBtn = `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; padding:5px; margin-top:10px; border-radius:5px; font-size:11px; width:auto;">Өз хабарламамды өшіру ❌</button>`;
             }
-        });
-    }
 
-    function updateVisibleList() {
-        const bounds = map.getBounds();
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        let html = '';
-        let count = 0;
+            m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br><a href="tel:${i.phone}">${i.phone}</a>${delBtn}`);
+            
+            m.bindTooltip(i.info.substring(0,20), { 
+                permanent: true, direction: 'bottom', offset: [0, 10], className: 'marker-label' 
+            });
 
-        rawData.forEach(i => {
-            const loc = L.latLng(i.lat, i.lon);
-            if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
-                count++;
-                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                html += `
-                    <div class="list-item">
-                        <div class="list-info">
-                            <b style="color:${color}">${i.info}</b>
-                            <span>${i.name || i.seller_name || 'Клиент'} • ${i.type}</span>
-                        </div>
-                        <a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>
+            markersGroup.addLayer(m);
+        }
+    });
+}
+
+function updateVisibleList() {
+    const bounds = map.getBounds();
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    let html = '';
+    let count = 0;
+
+    rawData.forEach(i => {
+        const loc = L.latLng(i.lat, i.lon);
+        if(bounds.contains(loc) && i.info.toLowerCase().includes(term)) {
+            count++;
+            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+            
+            // Өз хабарламасы болса, тізімде де "өшіру" тұрады
+            let userAction = `<a href="tel:${i.phone}" class="list-call">📞 Қоңырау</a>`;
+            if (i.device_token === myToken) {
+                userAction = `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:var(--danger); color:white; width:auto; padding:5px 10px; font-size:11px; margin:0;">Өшіру</button>`;
+            }
+
+            html += `
+                <div class="list-item">
+                    <div class="list-info">
+                        <b style="color:${color}">${i.info}</b>
+                        <span>${i.name || i.seller_name || 'Клиент'} • ${i.type}</span>
                     </div>
-                `;
-            }
-        });
-        document.getElementById('item-count').innerText = count;
-        document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
-    }
+                    ${userAction}
+                </div>
+            `;
+        }
+    });
+    document.getElementById('item-count').innerText = count;
+    document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; color:#999;">Бұл аумақта ақпарат жоқ...</p>';
+}
 
     function saveItem(type) {
         let d = {}, path = '';
