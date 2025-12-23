@@ -11,12 +11,13 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Онлайн қолданушылардың соңғы белсенділік уақыты
+// Онлайн қолданушылардың соңғы белсенділік уақыты (Жадта сақталады)
 let onlineUsers = {}; 
 
 // БАЗАНЫ ЖӘНЕ КЕСТЕЛЕРДІ БАСТАУ
 async function initDB() {
     try {
+        // Кестелерді құру: is_active бағаны VIP мәртебесін анықтайды
         await pool.query(`
             CREATE TABLE IF NOT EXISTS workers (
                 id SERIAL PRIMARY KEY, 
@@ -53,12 +54,12 @@ async function initDB() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log("DB Ready");
-    } catch (err) { console.error("Init error:", err); }
+        console.log("Деректер базасы дайын.");
+    } catch (err) { console.error("DB Init Error:", err); }
 }
 initDB();
 
-// ПИНГ: Пайдаланушының сайтта отырғанын тіркеу
+// ПИНГ: Қолданушының браузерінен әр 30 сек сайын келеді
 app.post('/user-ping', (req, res) => {
     const { token } = req.body;
     if (token) {
@@ -67,27 +68,30 @@ app.post('/user-ping', (req, res) => {
     res.json({ success: true });
 });
 
-// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ
+// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ (Карта және Админ үшін)
 app.get('/get-all', async (req, res) => {
     try {
         // 1. АВТОМАТТЫ ТАЗАЛАУ: 24 сағаттан асқан жазбаларды жою
-        await pool.query("DELETE FROM workers WHERE created_at < NOW() - interval '24 hours'");
-        await pool.query("DELETE FROM goods WHERE created_at < NOW() - interval '24 hours'");
-        await pool.query("DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'");
+        const cleanupQuery = "DELETE FROM %I WHERE created_at < NOW() - interval '24 hours'";
+        await pool.query(`DELETE FROM workers WHERE created_at < NOW() - interval '24 hours'`);
+        await pool.query(`DELETE FROM goods WHERE created_at < NOW() - interval '24 hours'`);
+        await pool.query(`DELETE FROM orders WHERE created_at < NOW() - interval '24 hours'`);
 
         const w = await pool.query('SELECT * FROM workers');
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
 
         const now = Date.now();
-        // Пайдаланушы соңғы 45 секундта белсенді болса - онлайн
+        // Пайдаланушы соңғы 45 секундта пинг жіберсе - ОНЛАЙН
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // КАРТА ҮШІН СҮЗГІ: VIP (is_active) немесе Онлайн отырғандар
+        // КАРТА ҮШІН СҮЗГІ: Тек VIP (is_active=true) немесе қазір онлайн отырғандар
         const filteredWorkers = w.rows.filter(i => i.is_active || isOnline(i.device_token));
         const filteredGoods = g.rows.filter(i => i.is_active || isOnline(i.device_token));
 
-        // Жауап: Карта үшін сүзілген деректер + Админ панель үшін толық тізім
+        // Жауап: 
+        // workers/goods/orders — картада көрінетіндер
+        // admin_all — админ панельдегі кесте үшін (оффлайндар да көрінеді)
         res.json({ 
             workers: filteredWorkers, 
             goods: filteredGoods, 
@@ -126,17 +130,17 @@ app.post('/save-order', async (req, res) => {
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// АДМИН: VIP СТАТУСТЫ ӨЗГЕРТУ (Қосу/Өшіру)
+// АДМИН: VIP СТАТУСТЫ ӨЗГЕРТУ
 app.post('/admin/toggle-active', async (req, res) => {
     try {
-        const { id, type, active } = req.body; // active: true немесе false
+        const { id, type, active } = req.body; 
         const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
         await pool.query(`UPDATE ${table} SET is_active = $1 WHERE id = $2`, [active, id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// ӨШІРУ
+// ЖОЮ: Қолданушы өз хабарламасын немесе Админ кез келгенін жоя алады
 app.post('/delete-item', async (req, res) => {
     try {
         const { id, type, token } = req.body;
@@ -157,4 +161,4 @@ app.post('/delete-item', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды.`));
