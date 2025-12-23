@@ -10,50 +10,53 @@
     <style>
         :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; --danger: #dc3545; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f7f6; }
-        #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
+        
+        /* SEARCH BOX */
         .search-box { padding: 10px; background: white; text-align: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .search-box input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; }
         
-        /* КАРТОЧКАЛАРДЫҢ ҚАТАР ТҰРУЫ */
-        .container { 
-            padding: 15px; 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
-            gap: 15px; 
-            align-items: start;
-        }
-        
-        .card { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            display: flex;
-            flex-direction: column;
-            border-top: 5px solid var(--primary);
-        }
+        #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
+
+        /* ДИНАМИКАЛЫҚ ТІЗІМ СТИЛІ */
+        #visible-list-container { max-height: 250px; overflow-y: auto; background: white; margin: 10px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .list-header { padding: 10px; background: #eee; font-weight: bold; font-size: 14px; position: sticky; top: 0; }
+        .list-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .list-item:hover { background: #f9f9f9; }
+        .list-info { flex: 1; }
+        .list-info b { color: var(--primary); font-size: 14px; }
+        .list-info p { margin: 2px 0; font-size: 13px; color: #555; }
+        .list-call { background: var(--success); color: white; padding: 8px 12px; border-radius: 20px; text-decoration: none; font-size: 12px; font-weight: bold; }
+
+        .container { padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; align-items: start; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; border-top: 5px solid var(--primary); }
         
         input, select, textarea, button { width: 100%; margin: 8px 0; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
-        
         button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
         button:hover { opacity: 0.8; }
         
         .vip-btn { background: var(--warning); color: black; margin-top: 5px; }
         .payment-info { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 8px; font-size: 12px; margin: 5px 0; color: #856404; }
 
+        /* МАРКЕР АСТЫНДАҒЫ МӘТІН */
+        .marker-label { background: rgba(255,255,255,0.9); border: 1px solid var(--primary); border-radius: 4px; padding: 1px 4px; font-size: 11px; font-weight: bold; color: #333; pointer-events: none; }
+
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10001; padding:20px; overflow-y:auto; }
-        .marker-label { background: white; border: 1px solid var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: bold; color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     </style>
 </head>
 <body>
 
 <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Іздеу (Мамандық, тауар, тапсырыс...)" oninput="filterMarkers()">
+    <input type="text" id="searchInput" placeholder="Іздеу (Мамандық, тауар, тапсырыс...)" oninput="filterMarkers(); updateVisibleList();">
 </div>
 
 <div id="map"></div>
+
+<div id="visible-list-container">
+    <div class="list-header">Осы аумақтағы хабарламалар:</div>
+    <div id="dynamic-list-content"></div>
+</div>
 
 <div class="container">
     <div class="card" style="border-top-color: var(--primary);">
@@ -61,9 +64,7 @@
         <input id="w_name" placeholder="Атыңыз">
         <input id="w_job" placeholder="Мамандық">
         <input id="w_phone" placeholder="Телефон">
-        <div class="payment-info">
-            💎 <b>VIP (490₸):</b> 24 сағат бойы картада үнемі көріну (оффлайн болсаңыз да).
-        </div>
+        <div class="payment-info">💎 VIP (490₸): 24 сағат бойы картада үнемі көріну.</div>
         <button onclick="saveItem('worker')">Тегін жариялау</button>
         <button class="vip-btn" onclick="initVIP('worker')">💎 VIP жариялау</button>
     </div>
@@ -74,9 +75,7 @@
         <input id="g_prod" placeholder="Тауар атауы">
         <input id="g_price" placeholder="Бағасы">
         <input id="g_phone" placeholder="Телефон">
-        <div class="payment-info">
-            💎 <b>VIP (490₸):</b> 24 сағат бойы картада үнемі көріну.
-        </div>
+        <div class="payment-info">💎 VIP (490₸): 24 сағат бойы картада үнемі көріну.</div>
         <button onclick="saveItem('good')" style="background:var(--warning); color:black;">Тегін жариялау</button>
         <button class="vip-btn" onclick="initVIP('good')" style="background:black; color:white;">💎 VIP жариялау</button>
     </div>
@@ -106,63 +105,51 @@
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // КАРТА ОРНАТУ
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
-    let rawData = [];
+    let rawData = []; // Картадағы белсенділер
+    let adminData = null; // Админге арналған толық база
 
-    // ОНЛАЙН СТАТУС (ӘР 30 СЕКУНД)
-    function sendPing() {
-        fetch(API + '/user-ping', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ token: myToken })
-        });
-    }
+    // ПИНГ ЖӘНЕ КАРТА ЖЫЛЖЫТУ
+    function sendPing() { fetch(API + '/user-ping', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token: myToken }) }); }
     setInterval(sendPing, 30000);
     sendPing();
 
-    // МӘЛІМЕТТЕРДІ САҚТАУ
+    map.on('moveend', updateVisibleList);
+
     function saveItem(type) {
         let d = {}, path = '';
         if(type==='worker'){ path='/save-worker'; d={name:v('w_name'), job:v('w_job'), phone:v('w_phone')}; }
         if(type==='good'){ path='/save-goods'; d={name:v('g_name'), product:v('g_prod'), price:v('g_price'), phone:v('g_phone')}; }
         if(type==='order'){ path='/save-order'; d={name:v('c_name'), description:v('c_desc'), phone:v('c_phone')}; }
 
-        if(!d.phone || d.phone === "") return alert("Телефон нөмірін толтырыңыз!");
+        if(!d.phone) return alert("Телефон нөмірін толтырыңыз!");
 
         navigator.geolocation.getCurrentPosition(p => {
             d.lat = p.coords.latitude; d.lon = p.coords.longitude; d.device_token = myToken;
-            
-            fetch(API + path, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(d)
-            }).then(() => {
-                alert("Жарияланды! Сайтта онлайн болғанда картада көрінесіз.");
-                loadMarkers();
-            });
-        }, () => alert("GPS рұқсатын беріңіз!"));
+            fetch(API + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(d) })
+            .then(() => { alert("Жарияланды!"); loadMarkers(); });
+        }, () => alert("GPS қосыңыз!"));
     }
 
-    // VIP ЖАРИЯЛАУ
     function initVIP(type) {
-        alert("VIP СТАТУС: 490₸ төлеңіз (Kaspi: 87017398309). \nТөлемнен кейін хабарламаңыз 24 сағат бойы ӨШПЕЙТІН болады.");
+        alert("VIP СТАТУС (490₸). Kaspi: 87017398309. Төлеген соң Админ белсендіреді.");
         saveItem(type);
     }
 
-    // КАРТАДАН КӨРСЕТУ
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
+            adminData = data.admin_all;
             rawData = [
                 ...data.workers.map(i => ({...i, type: 'worker', info: i.job})),
                 ...data.goods.map(i => ({...i, type: 'good', info: i.product_name})),
                 ...data.orders.map(i => ({...i, type: 'order', info: i.description}))
             ];
             filterMarkers();
+            updateVisibleList();
             if(document.getElementById('admin-modal').style.display === 'block') renderAdmin();
         });
     }
@@ -174,46 +161,71 @@
             if (i.info.toLowerCase().includes(term) || term === "") {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.5)"></div>`, className: '' })
+                    icon: L.divIcon({ html: `<div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>`, className: '' })
                 });
                 
-                let delBtn = (i.device_token === myToken) ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; padding:4px; font-size:10px; width:auto; color:white;">Өшіру ❌</button>` : "";
-                
+                let delBtn = (i.device_token === myToken) ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; padding:3px; font-size:10px; width:auto;">Жою ❌</button>` : "";
                 m.bindPopup(`<b>${i.type.toUpperCase()}</b><br>${i.info}<br><a href="tel:${i.phone}">${i.phone}</a>${delBtn}`);
-                m.bindTooltip(i.info.substring(0,20), { permanent: false, direction: 'top', className: 'marker-label' });
+                
+                // МӘТІН ӘРҚАШАН КӨРІНІП ТҰРУЫ ҮШІН
+                m.bindTooltip(i.info.substring(0,15), { permanent: true, direction: 'bottom', offset: [0, 10], className: 'marker-label' });
                 markersGroup.addLayer(m);
             }
         });
     }
 
-    function deleteItem(id, type) {
-        if(!confirm("Өшіруді растайсыз ба?")) return;
-        fetch(API + '/delete-item', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id, type, token: myToken})
-        }).then(() => loadMarkers());
+    // АУДАН БОЙЫНША АВТОМАТТЫ ТІЗІМ ЖАҢАРТУ
+    function updateVisibleList() {
+        const bounds = map.getBounds();
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        let html = '';
+        let count = 0;
+
+        rawData.forEach(i => {
+            const loc = L.latLng(i.lat, i.lon);
+            if(bounds.contains(loc) && (i.info.toLowerCase().includes(term) || term === "")) {
+                count++;
+                html += `
+                    <div class="list-item">
+                        <div class="list-info">
+                            <b>${i.info}</b>
+                            <p>${i.name || i.seller_name || i.client_name} • ${i.type}</p>
+                        </div>
+                        <a href="tel:${i.phone}" class="list-call">Қоңырау</a>
+                    </div>
+                `;
+            }
+        });
+        document.getElementById('dynamic-list-content').innerHTML = count > 0 ? html : '<p style="padding:15px; font-size:13px;">Бұл аумақта ештеңе табылмады...</p>';
     }
 
-    // АДМИН ПАНЕЛЬ
+    function deleteItem(id, type) {
+        if(!confirm("Өшіруді растайсыз ба?")) return;
+        fetch(API + '/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, type, token: myToken}) }).then(() => loadMarkers());
+    }
+
     function renderAdmin() {
+        if(!adminData) return;
         let h = `<table><tr><th>Түрі</th><th>Инфо</th><th>Күйі</th><th>Әрекет</th></tr>`;
-        rawData.forEach(i => {
-            if(i.type !== 'order') {
-                const status = i.is_active ? "💎 VIP" : "Тегін";
-                const btn = !i.is_active ? `<button onclick="activate(${i.id},'${i.type}')">✅ VIP Қосу</button>` : `<button style="background:red" onclick="deleteItem(${i.id},'${i.type}')">❌ Өшіру</button>`;
-                h += `<tr><td>${i.type}</td><td>${i.info}</td><td>${status}</td><td>${btn}</td></tr>`;
-            }
+        const list = [
+            ...adminData.workers.map(x=>({...x, t:'worker', msg: x.job})),
+            ...adminData.goods.map(x=>({...x, t:'good', msg: x.product_name})),
+            ...adminData.orders.map(x=>({...x, t:'order', msg: x.description}))
+        ];
+        list.forEach(i => {
+            const status = i.is_active ? "<b style='color:green'>VIP</b>" : "Тегін";
+            const btn = `<button onclick="toggleActive(${i.id},'${i.t}', ${!i.is_active})">${i.is_active ? 'VIP Өшіру' : 'VIP Қосу'}</button>`;
+            h += `<tr><td>${i.t}</td><td>${i.msg}</td><td>${status}</td><td>${btn} <button style="background:red" onclick="deleteAdmin(${i.id},'${i.t}')">❌</button></td></tr>`;
         });
         document.getElementById('admin-content').innerHTML = h + "</table>";
     }
 
-    function activate(id, type) {
-        fetch(API + '/admin/activate', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({id, type}) 
-        }).then(() => loadMarkers());
+    function toggleActive(id, type, active) {
+        fetch(API + '/admin/toggle-active', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, type, active}) }).then(() => loadMarkers());
+    }
+    
+    function deleteAdmin(id, type) {
+        fetch(API + '/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, type, token: 'admin777'}) }).then(() => loadMarkers());
     }
 
     function v(id){ return document.getElementById(id).value.trim(); }
@@ -221,10 +233,8 @@
     window.onhashchange = () => {
         if(location.hash === "#admin777") {
             const pass = prompt("Құпия сөз:");
-            if(pass === "admin777") {
-                document.getElementById('admin-modal').style.display='block'; 
-                renderAdmin();
-            } else { location.hash = ""; }
+            if(pass === "admin777") { document.getElementById('admin-modal').style.display='block'; renderAdmin(); }
+            else { location.hash = ""; }
         } else { document.getElementById('admin-modal').style.display='none'; }
     };
 
