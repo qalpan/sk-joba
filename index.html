@@ -240,19 +240,20 @@
         }
     }
 
-    function loadMarkers() {
-        fetch(API + '/get-all').then(r => r.json()).then(data => {
-            adminDataFull = data.admin_all;
-            const newData = [];
-            if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
-            if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
-            if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
-            
-            rawData = newData;
-            filterMarkers();
-            if(location.hash === '#admin777') renderAdmin();
-        });
-    }
+function loadMarkers() {
+    fetch(API + '/get-all').then(r => r.json()).then(data => {
+        adminDataFull = data.admin_all;
+        const newData = [];
+        
+        // Серверден келетін деректерді дұрыс форматта жинау
+        if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
+        if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
+        if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
+        
+        rawData = newData;
+        filterMarkers(); // Осы жерде картаға маркерлер қойылады
+    });
+}
 
 // 1. Байланыс ақпаратын мәтін түрінде дайындау функциясы
 function formatContacts(item) {
@@ -288,28 +289,24 @@ function filterMarkers() {
         if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
             const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
             
-            // 1. БАРЛЫҚ БАЙЛАНЫС ТҮРЛЕРІН ЖИНАҚТАУ (Бір жолдан)
+            // БАЙЛАНЫСТАР: Барлық деректі (Тел, Email т.б.) жоғалтпай жинау
             let contactsHtml = '';
             try {
                 const arr = typeof i.contacts === 'string' ? JSON.parse(i.contacts || '[]') : (i.contacts || []);
-                // Егер contacts бос болса, негізгі phone-ды қолданамыз
                 if (arr.length === 0 && i.phone) arr.push({type: 'Тел', val: i.phone});
                 
                 arr.forEach(c => {
-                    const icon = c.type === 'Тел' ? '📞' : (c.type === 'Email' ? '📧' : '🔹');
-                    if(c.type === 'Тел' || c.type === 'WhatsApp') {
-                        contactsHtml += `<a href="tel:${c.val}" class="compact-contact"><span>${icon}</span> <span>${c.val}</span></a>`;
-                    } else {
-                        contactsHtml += `<div class="compact-contact"><span>${icon}</span> <span>${c.val}</span></div>`;
-                    }
+                    const icon = c.type === 'Тел' ? '📞' : (c.type === 'Email' ? '📧' : '💬');
+                    contactsHtml += `<div class="compact-contact"><span>${icon}</span> <span>${c.val}</span></div>`;
                 });
-            } catch(e) { contactsHtml = i.phone; }
+            } catch(e) { contactsHtml = `📞 ${i.phone}`; }
 
-            // 2. ӨШІРУ БАСПАСЫ (Тек хабарлама иесіне)
+            // ӨШІРУ БАСПАСЫ: Тек иесіне көрінеді
             let deleteBtn = (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) 
-                ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` 
+                ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer;">🗑️ Өшіру</button>` 
                 : '';
 
+            // МАРКЕР ҚҰРУ
             const m = L.marker([i.lat, i.lon], {
                 icon: L.divIcon({ 
                     html: `<div style="display:flex;flex-direction:column;align-items:center;">
@@ -320,29 +317,26 @@ function filterMarkers() {
                 })
             });
 
-            // КАРТАДАҒЫ ПОПУП
+            // КАРТАДАҒЫ МИНИ-АҚПАРАТ
             m.bindPopup(`
                 <div style="text-align:center; min-width:140px;">
                     <b style="color:${color}; font-size:15px; display:block;">${i.info}</b>
-                    <span class="owner-name" style="display:block; margin-bottom:5px;">${i.title}</span>
-                    <div style="display:flex; flex-direction:column; gap:3px;">${contactsHtml}</div>
-                    ${deleteBtn}
+                    <span style="display:block; color:gray; font-size:12px; margin-bottom:5px;">${i.title}</span>
+                    <div style="display:flex; flex-direction:column; gap:2px;">${contactsHtml}</div>
+                    <div style="margin-top:5px;">${deleteBtn}</div>
                 </div>
             `);
             markersGroup.addLayer(m);
 
             // ТӨМЕНГІ ТІЗІМ
-            listHtml += `
-                <div class="list-item" style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <b style="color:${color}">${i.info}</b><br>
-                        <span class="owner-name">${i.title}</span><br>
-                        ${deleteBtn}
-                    </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
-                        ${contactsHtml}
-                    </div>
-                </div>`;
+            listHtml += `<div class="list-item">
+                <div>
+                    <b style="color:${color}">${i.info}</b><br>
+                    <small>${i.title}</small><br>
+                    ${deleteBtn}
+                </div>
+                <div style="text-align:right;">${contactsHtml}</div>
+            </div>`;
         }
     });
     document.getElementById('dynamic-list-content').innerHTML = listHtml;
