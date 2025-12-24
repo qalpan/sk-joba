@@ -157,13 +157,13 @@ function loadMarkers() {
         .then(r => r.json())
         .then(data => {
             adminData = data.admin_all;
+            // Деректерді біріктіру және сұрыптау (VIP-тер алдында тұрады)
             const newData = [
                 ...data.workers.map(i => ({...i, type: 'worker', info: i.job})),
                 ...data.goods.map(i => ({...i, type: 'good', info: i.product_name})),
                 ...data.orders.map(i => ({...i, type: 'order', info: i.description}))
-            ];
+            ].sort((a, b) => (b.is_active === a.is_active) ? 0 : b.is_active ? 1 : -1);
 
-            // Егер деректер өзгерген болса ғана картаны қайта сызамыз
             if (JSON.stringify(rawData) !== JSON.stringify(newData)) {
                 rawData = newData;
                 filterMarkers();
@@ -305,9 +305,17 @@ function saveItem(type, isVIP = false) {
 }
 
 function initVIP(type) {
-    const confirmPayment = confirm("VIP СТАТУС (490₸).\nKaspi: +77017398309 (Админ: С.К.)\n\nТөлем жасасаңыз 'ОК' басыңыз. Хабарламаңыз тексеруге жіберіледі.");
+    const adminEmail = "сиздин_поштаңыз@gmail.com"; // Осы жерге өз email-іңізді жазыңыз
+    const confirmPayment = confirm("VIP СТАТУС (490₸).\nKaspi: +77017398309 (С.К.)\n\nТөлем жасасаңыз 'ОК' басыңыз. Хабарламаңыз сақталып, пошта арқылы скриншот жіберуіңіз керек.");
+    
     if(confirmPayment) {
         saveItem(type, true);
+        
+        // Поштаға хат жазу терезесін ашу
+        const subject = encodeURIComponent(`VIP Төлем растау: ${type}`);
+        const body = encodeURIComponent(`Сәлеметсіз бе! \n\nМен ${type} бойынша VIP төлем жасадым. Төлем скриншотын осы хатқа тіркеп жіберіп отырмын. Тексеріп, картаға шығаруыңызды сұраймын.`);
+        
+        window.location.href = `mailto:${adminEmail}?subject=${subject}&body=${body}`;
     }
 }
 
