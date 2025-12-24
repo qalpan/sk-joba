@@ -297,39 +297,53 @@ function filterMarkers() {
                     </a>`;
             }
 
-            // 2. МАРКЕРДІ ҚҰРУ (Стильдеріңіз сақталды)
+            // 2. ӨШІРУ БАТЫРМАСЫ: Тек хабарлама иесіне (token сәйкес келсе) көрінеді
+            let deleteBtn = '';
+            if (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) {
+                deleteBtn = `<button onclick="deleteItem(${i.id}, '${i.type}')" 
+                             style="background:#dc3545; color:white; border:none; padding:4px 10px; border-radius:15px; font-size:11px; margin-top:5px; cursor:pointer;">
+                             🗑️ Жою</button>`;
+            }
+
+            // 3. МАРКЕРДІ ҚҰРУ
             const m = L.marker([i.lat, i.lon], {
                 icon: L.divIcon({ 
                     html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>
+                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>
                             <div class="marker-label">${i.info.substring(0,10)}</div>
                            </div>`,
                     className: '', iconSize: [40, 40], iconAnchor: [20, 6] 
                 })
             });
 
-            // 3. МИНИ-АҚПАРАТ (Popup): Аты жеке жолда, нөмір бір жолда
+            // 4. МИНИ-АҚПАРАТ (Popup): Барлығы сіз сұраған ретпен
             m.bindPopup(`
-                <div style="text-align:center; min-width:140px;">
-                    <b style="color:${color}; font-size:15px; display:block;">${i.info}</b>
-                    <span class="owner-name">${i.title}</span> ${contactRow} </div>
+                <div style="text-align:center; min-width:150px; font-family:sans-serif;">
+                    <b style="color:${color}; font-size:16px; display:block; margin-bottom:2px;">${i.info}</b>
+                    <span class="owner-name" style="margin-bottom:8px;">${i.title}</span>
+                    ${contactRow}
+                    <div style="margin-top:5px;">${deleteBtn}</div>
+                </div>
             `);
             markersGroup.addLayer(m);
 
-            // 4. ТӨМЕНГІ ТІЗІМДІ ЫҚШАМДАУ
+            // 5. ТӨМЕНГІ ТІЗІМ
             listHtml += `
-                <div class="list-item" style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                    <div style="max-width: 60%;">
-                        <b style="color:${color}">${i.info}</b><br>
+                <div class="list-item" style="padding:12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="max-width: 65%;">
+                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
                         <span class="owner-name">${i.title}</span>
+                        ${deleteBtn}
                     </div>
-                    <div>
+                    <div style="text-align:right;">
                         ${contactRow}
                     </div>
                 </div>`;
         }
     });
+    
     document.getElementById('dynamic-list-content').innerHTML = listHtml;
+    document.getElementById('item-count').innerText = markersGroup.getLayers().length;
 }
 
     function saveItem(type, isVip) {
