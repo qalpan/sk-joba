@@ -8,33 +8,55 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
-        :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; --danger: #dc3545; }
+        :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; }
         body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
-        .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding-top: 10px; background: rgba(244,247,246,0.95); }
-        .search-input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; }
-        #map { height: 50vh; width: 100%; border-bottom: 3px solid var(--primary); z-index: 1; }
-        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .search-input { width: 90%; padding: 10px; border-radius: 20px; border: 2px solid var(--primary); outline: none; }
+        
+        /* СТИЛЬ АУЫСТЫРҒЫШ */
+        .style-switcher { display: flex; justify-content: center; gap: 10px; margin-top: 8px; }
+        .style-btn { padding: 5px 12px; border-radius: 15px; border: 1px solid #ddd; background: #eee; cursor: pointer; font-size: 12px; }
+        .style-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
+        
+        /* МАРКЕР АСТЫНДАҒЫ ЖАЗУ (LABEL) */
+        .marker-label {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #666;
+            border-radius: 4px;
+            padding: 1px 4px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #333;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; }
         .list-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; display: grid; gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; border-top: 5px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         input, textarea, button { width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; box-sizing: border-box; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
+        button { color: white; border: none; font-weight: bold; cursor: pointer; }
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
     </style>
 </head>
 <body>
 
 <div class="header-box">
-    <input type="text" id="searchInput" class="search-input" placeholder="Іздеу (Мамандық, тауар)..." oninput="filterMarkers()">
-    <div style="margin-top:5px; font-size:12px; color:gray;">База толық жаңартылды. Қайта енгізіп көріңіз.</div>
+    <input type="text" id="searchInput" class="search-input" placeholder="Іздеу..." oninput="filterMarkers()">
+    <div class="style-switcher">
+        <button id="btn-color" class="style-btn active" onclick="changeMapStyle('color')">Түсті</button>
+        <button id="btn-mono" class="style-btn" onclick="changeMapStyle('mono')">Ақ-қара</button>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <div id="visible-list-container">
-    <div style="padding:10px; font-weight:bold; background:#eee;">📍 Тізім (<span id="item-count">0</span>)</div>
+    <div style="padding:10px; font-weight:bold; background:#eee;">📍 Жақын маңда: (<span id="item-count">0</span>)</div>
     <div id="dynamic-list-content"></div>
 </div>
 
@@ -42,8 +64,8 @@
     <div class="card" style="border-color: var(--primary);">
         <h4>👷 Қызмет жариялау</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық (Сантехник)">
-        <input id="w_phone" placeholder="Телефон (+77...)">
+        <input id="w_job" placeholder="Мамандық">
+        <input id="w_phone" placeholder="Телефон">
         <button onclick="saveItem('worker', false)" style="background:var(--primary)">Тегін жариялау</button>
         <button onclick="initVIP('worker')" style="background:#0056b3">💎 VIP жариялау</button>
     </div>
@@ -51,9 +73,9 @@
     <div class="card" style="border-color: var(--warning);">
         <h4>📦 Тауар сату</h4>
         <input id="g_name" placeholder="Сатушы аты">
-        <input id="g_prod" placeholder="Тауар аты (Сүт, Ет)">
+        <input id="g_prod" placeholder="Тауар аты">
         <input id="g_price" placeholder="Бағасы">
-        <input id="g_phone" placeholder="Телефон (+77...)">
+        <input id="g_phone" placeholder="Телефон">
         <button onclick="saveItem('good', false)" style="background:var(--warning)">Тегін жариялау</button>
         <button onclick="initVIP('good')" style="background:#d39e00">💎 VIP жариялау</button>
     </div>
@@ -61,8 +83,8 @@
     <div class="card" style="border-color: var(--success);">
         <h4>📋 Тапсырыс беру</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не керек? (Толық жазыңыз)"></textarea>
-        <input id="c_phone" placeholder="Телефон (+77...)">
+        <textarea id="c_desc" placeholder="Не керек?"></textarea>
+        <input id="c_phone" placeholder="Телефон">
         <button onclick="saveItem('order', false)" style="background:var(--success)">Тегін жариялау</button>
         <button onclick="initVIP('order')" style="background:#1e7e34">💎 VIP тапсырыс</button>
     </div>
@@ -70,11 +92,9 @@
 
 <div id="admin-modal">
     <h3>Админ Панель</h3>
-    <button onclick="location.hash=''" style="background:red; width:auto; padding:5px 15px;">Жабу</button>
-    <div style="margin:10px 0;">
-        <button onclick="resetDatabaseDanger()" style="background:black; color:red; border:1px solid red;">⚠️ БАЗАНЫ ТАЗАЛАУ (RESET)</button>
-    </div>
-    <div id="admin-content">Loading...</div>
+    <button onclick="location.hash=''" style="background:red;">Жабу</button>
+    <button onclick="resetDatabaseDanger()" style="background:black; margin-top:10px;">⚠️ RESET DATABASE</button>
+    <div id="admin-content"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -86,41 +106,46 @@
     localStorage.setItem('token', myToken);
 
     const map = L.map('map').setView([43.2389, 76.8897], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    // КАРТА СТИЛЬДЕРІ
+    const baseLayers = {
+        color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        mono: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
+    };
+    baseLayers.color.addTo(map);
 
+    function changeMapStyle(s) {
+        map.removeLayer(baseLayers.color);
+        map.removeLayer(baseLayers.mono);
+        baseLayers[s].addTo(map);
+        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + s).classList.add('active');
+    }
+
+    // ҚАБАТТАСУДЫ ШЕШЕТІН КЛАСТЕР
     const markersGroup = L.markerClusterGroup({
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
-        maxClusterRadius: 40 
+        maxClusterRadius: 30
     });
     map.addLayer(markersGroup);
 
     let rawData = [];
-    let adminData = null;
-
-    setInterval(() => {
-        fetch(API + '/user-ping', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:myToken})});
-    }, 20000);
 
     function loadMarkers() {
         fetch(API + '/get-all')
             .then(r => r.json())
             .then(data => {
-                adminData = data.admin_all;
                 const newData = [];
-                // Деректерді дұрыс жинау
-                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, phone: x.phone}));
-                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, phone: x.phone}));
-                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, phone: x.phone}));
+                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
+                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
+                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
 
                 if(JSON.stringify(rawData) !== JSON.stringify(newData)) {
                     rawData = newData;
                     filterMarkers();
                 }
-                if(document.getElementById('admin-modal').style.display === 'block') renderAdmin();
-            })
-            .catch(e => console.error(e));
+            });
     }
 
     function filterMarkers() {
@@ -133,46 +158,43 @@
             if((i.info && i.info.toLowerCase().includes(term)) || (i.title && i.title.toLowerCase().includes(term))) {
                 count++;
                 const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
-                const isVIP = i.is_active;
+                
+                // МАРКЕР ЖӘНЕ ОНЫҢ АСТЫНДАҒЫ ЖАЗУ (LABEL)
+                const markerHtml = `
+                    <div style="display:flex; flex-direction:column; align-items:center;">
+                        <div style="background:${color}; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5);"></div>
+                        <div class="marker-label">${i.info.substring(0,12)}${i.info.length>12?'..':''}</div>
+                    </div>
+                `;
 
                 const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid white; box-shadow:0 0 5px black;"></div>` })
+                    icon: L.divIcon({ 
+                        html: markerHtml, 
+                        className: '', 
+                        iconSize: [60, 40], 
+                        iconAnchor: [30, 7] 
+                    })
                 });
-                
-                let delBtn = "";
-                if (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) {
-                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; color:white; padding:5px; margin-top:5px;">Жою</button>`;
-                }
 
-                // ТЕЛЕФОН НӨМІРІН ШЫҒАРУ: i.phone бар ма екенін тексереміз
-                const phoneLink = i.phone ? `<a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:6px; border-radius:5px; text-decoration:none; margin-top:5px; text-align:center;">📞 ${i.phone}</a>` : '<span style="color:red">Нөмір жоқ</span>';
+                let delBtn = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) 
+                    ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; font-size:10px; padding:2px; margin-top:5px;">Жою</button>` : "";
 
-                m.bindPopup(`
-                    <div style="min-width:150px; text-align:center;">
-                        <b style="color:${color}">${isVIP?'⭐ VIP<br>':''}${i.type.toUpperCase()}</b><br>
-                        <b>${i.info}</b><br>
-                        ${i.title || ''}<br>
-                        ${phoneLink}
-                        ${delBtn}
-                    </div>
-                `);
+                m.bindPopup(`<b>${i.info}</b><br>${i.title}<br><a href="tel:${i.phone}" style="color:green; font-weight:bold;">📞 Хабарласу</a>${delBtn}`);
                 markersGroup.addLayer(m);
 
                 listHtml += `
                     <div class="list-item">
-                        <div>
-                            <b style="color:${color}">${isVIP?'⭐ ':''}${i.info}</b>
-                            <span style="font-size:12px; display:block;">${i.title || 'User'}</span>
-                        </div>
-                        <a href="tel:${i.phone}" style="text-decoration:none; font-weight:bold;">📞 Call</a>
+                        <div><b style="color:${color}">${i.info}</b><br><small>${i.title}</small></div>
+                        <a href="tel:${i.phone}">📞</a>
                     </div>
                 `;
             }
         });
-        document.getElementById('dynamic-list-content').innerHTML = listHtml;
         document.getElementById('item-count').innerText = count;
+        document.getElementById('dynamic-list-content').innerHTML = listHtml;
     }
 
+    // БАСҚА ФУНКЦИЯЛАР (Save, VIP, Delete)
     function saveItem(type, isVip) {
         let d = { is_vip: isVip };
         if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.phone=v('w_phone'); }
@@ -182,88 +204,33 @@
         if(!d.phone) return alert("Телефон нөмірін жазыңыз!");
 
         navigator.geolocation.getCurrentPosition(pos => {
-            d.lat = pos.coords.latitude;
-            d.lon = pos.coords.longitude;
-            d.device_token = myToken;
-
+            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude; d.device_token = myToken;
             const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
-
-            fetch(API + endpoint, {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify(d)
-            }).then(r=>r.json()).then(res => {
-                if(res.success) {
-                    alert(isVip ? "VIP өтінім қабылданды! Төлем расталған соң шығады." : "Сәтті! (Тегін хабарлама 1 минут ішінде шығады)");
-                    loadMarkers();
-                } else {
-                    alert("Қате: " + res.error);
-                }
+            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
+            .then(r=>r.json()).then(res => {
+                alert(res.success ? "Сәтті жарияланды!" : "Қате!");
+                loadMarkers();
             });
         }, () => alert("GPS қосыңыз!"));
     }
 
-    function initVIP(type) {
-        if(confirm("VIP СТАТУС (490₸). OK басыңыз.")) {
-            saveItem(type, true);
-            window.location.href = `mailto:sk-joba@outlook.com?subject=VIP&body=Type: ${type}`;
-        }
-    }
-
     function deleteItem(id, type) {
         if(!confirm("Өшіресіз бе?")) return;
-        fetch(API + '/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token:myToken})})
-        .then(() => { loadMarkers(); alert("Өшірілді"); });
+        fetch(API + '/delete-item', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token:myToken}) })
+        .then(() => loadMarkers());
     }
 
-    // БАЗАНЫ ТАЗАЛАУ (RESET)
-    function resetDatabaseDanger() {
-        if(prompt("Барлық деректер өшеді! Келіссеңіз 'DELETE' деп жазыңыз:") === "DELETE") {
-            fetch(API + '/reset-database-danger').then(r=>r.text()).then(msg => alert(msg));
-        }
+    function initVIP(type) { 
+        if(confirm("VIP Төлем 490₸. OK бассаңыз өтінім жіберіледі.")) saveItem(type, true); 
     }
 
-    function renderAdmin() {
-        if(!adminData) return;
-        let h = `<table border="1"><tr><th>Type</th><th>Info</th><th>Status</th><th>Action</th></tr>`;
-        const list = [
-            ...adminData.workers.map(x=>({...x, t:'worker', i:x.job})),
-            ...adminData.goods.map(x=>({...x, t:'good', i:x.product_name})),
-            ...adminData.orders.map(x=>({...x, t:'order', i:x.description}))
-        ];
-        list.forEach(item => {
-            const btn = `<button onclick="toggleActive(${item.id},'${item.t}', ${!item.is_active})" style="background:${item.is_active?'orange':'green'}">${item.is_active?'VIP Өшіру':'VIP ҚОСУ'}</button>`;
-            const del = `<button onclick="admDel(${item.id},'${item.t}')" style="background:red;">Del</button>`;
-            h += `<tr><td>${item.t}</td><td>${item.i}</td><td>${item.is_active?'VIP':'Free'}</td><td>${btn}${del}</td></tr>`;
-        });
-        document.getElementById('admin-content').innerHTML = h + "</table>";
-    }
-
-    function toggleActive(id, type, val) {
-        fetch(API + '/admin/toggle-active', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, active:val})})
-        .then(()=>renderAdmin());
-    }
-    function admDel(id, type) {
-        fetch(API + '/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, type, token:'admin777'})})
-        .then(()=>renderAdmin());
-    }
-
-    window.onhashchange = () => {
-        if(location.hash==='#admin777') {
-            if(prompt('Password')==='admin777') {
-                document.getElementById('admin-modal').style.display='block';
-                renderAdmin();
-            }
-        } else {
-            document.getElementById('admin-modal').style.display='none';
-        }
-    }
-    
     function v(id){ return document.getElementById(id).value; }
-    
-    loadMarkers();
-    setInterval(loadMarkers, 10000); 
 
+    loadMarkers();
+    setInterval(loadMarkers, 15000);
+    setInterval(() => {
+        fetch(API + '/user-ping', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:myToken})});
+    }, 25000);
 </script>
 </body>
 </html>
