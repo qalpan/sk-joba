@@ -23,6 +23,7 @@ async function initDB() {
             id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, 
             lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
             is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
@@ -30,6 +31,7 @@ async function initDB() {
             id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, 
             price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
             is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
@@ -37,6 +39,7 @@ async function initDB() {
             id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, 
             phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
             is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
@@ -45,6 +48,9 @@ async function initDB() {
         for (const table of tables) {
             await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`);
             await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS device_token TEXT`);
+            
+            // ОСЫ ЖЕРГЕ ЖАҢАДАН ҚОСТЫҚ: Байланыс тізімін сақтайтын баған
+            await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS contacts JSONB DEFAULT '[]'`);
         }
 
         console.log("Деректер базасы жұмысқа дайын!");
