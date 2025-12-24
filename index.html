@@ -35,16 +35,17 @@
         #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; }
         .list-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: flex-start; }
         
-        /* БАЙЛАНЫС БЕЛГІЛЕРІНІҢ СТИЛІ */
+        /* БАЙЛАНЫС БЕЛГІЛЕРІНІҢ СТИЛІ - КОМПЬЮТЕР ҮШІН ЫҢҒАЙЛЫ */
         .contact-badge {
-            display: inline-block;
-            background: #f1f3f5;
+            display: block; /* Әрқайсысы жаңа жолдан шығады */
+            background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 12px;
-            margin: 2px 2px 0 0;
-            color: #495057;
+            padding: 4px 8px;
+            font-size: 13px;
+            margin-top: 4px;
+            color: #212529;
+            font-weight: bold;
         }
 
         .container { padding: 15px; display: grid; gap: 15px; }
@@ -161,7 +162,6 @@
     let rawData = [];
     let adminDataFull = null;
 
-    // Жаңа байланыс жолын қосу
     function addContactRow(containerId) {
         const div = document.createElement('div');
         div.className = 'contact-row';
@@ -173,7 +173,6 @@
         document.getElementById(containerId).appendChild(div);
     }
 
-    // Байланыстарды жинау
     function collectContacts(containerId) {
         let contacts = [];
         const rows = document.getElementById(containerId).querySelectorAll('.contact-row');
@@ -185,13 +184,16 @@
         return JSON.stringify(contacts);
     }
 
-    // Байланыстарды көрсету (HTML)
+    // БҰЛ ФУНКЦИЯ ЖӨНДЕЛДІ: Нөмірлерді мәтін ретінде анық шығарады
     function formatContacts(json) {
         try {
             const arr = JSON.parse(json || '[]');
             if(arr.length === 0) return '';
-            return arr.map(c => `<span class="contact-badge"><b>${c.type}:</b> ${c.val}</span>`).join('');
-        } catch(e) { return json; }
+            // Әр байланысты жаңа жолдан және белгісімен көрсетеміз
+            return arr.map(c => `<div class="contact-badge"><span>${c.type}:</span> ${c.val}</div>`).join('');
+        } catch(e) { 
+            return `<div class="contact-badge">${json}</div>`; 
+        }
     }
 
     function loadMarkers() {
@@ -230,24 +232,28 @@
                 let delBtn = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) 
                     ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; padding:4px; font-size:10px; margin-top:5px;">Жою</button>` : "";
 
+                // POPUP ЖӨНДЕЛДІ: Компьютерден де, тел-дан да ақпарат көрініп тұрады
                 m.bindPopup(`
-                    <div style="text-align:center; min-width:150px;">
-                        <b style="color:${color}">${i.info}</b><br><span>${i.title}</span><br>
-                        <div style="margin:8px 0;">${contactsHtml}</div>
-                        ${i.phone ? `<a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:8px; border-radius:5px; text-decoration:none; margin-top:5px;">📞 Қоңырау шалу</a>` : ''}
+                    <div style="text-align:center; min-width:180px;">
+                        <b style="color:${color}; font-size:14px;">${i.info}</b><br>
+                        <span style="font-weight:bold;">${i.title}</span><br>
+                        <div style="margin:10px 0; text-align:left;">${contactsHtml}</div>
+                        <a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:10px; border-radius:5px; text-decoration:none; margin-top:5px; font-weight:bold;">📞 Қоңырау шалу</a>
                         ${delBtn}
                     </div>
                 `);
                 markersGroup.addLayer(m);
 
+                // ТӨМЕНГІ ТІЗІМ ЖӨНДЕЛДІ: Мұнда да барлық байланыс деректері көрінеді
                 listHtml += `
                     <div class="list-item">
-                        <div style="width:80%">
-                            <b style="color:${color}">${i.info}</b><br><small>${i.title}</small>
+                        <div style="width:75%">
+                            <b style="color:${color}">${i.info}</b><br>
+                            <small><b>${i.title}</b></small>
                             <div style="margin-top:5px;">${contactsHtml}</div>
                         </div>
-                        <div style="width:20%; text-align:right;">
-                            ${i.phone ? `<a href="tel:${i.phone}" style="font-size:24px; text-decoration:none;">📞</a>` : ''}
+                        <div style="width:25%; text-align:right;">
+                            ${i.phone ? `<a href="tel:${i.phone}" style="font-size:28px; text-decoration:none;">📞</a>` : ''}
                         </div>
                     </div>
                 `;
@@ -298,6 +304,7 @@
         document.getElementById('admin-content').innerHTML = h + "</table>";
     }
 
+    // Қалған функциялар сіздің кодыңызбен бірдей
     function initVIP(type) { 
         const phone = "8 707 123 45 67"; 
         if(confirm(`💎 VIP ЖАРИЯЛАУ (490₸)\n\nТөлем нөмірі (Kaspi/Halyk):\n📍 ${phone}\n\nТөлеп болсаңыз 'OK' басыңыз.`)) saveItem(type, true); 
