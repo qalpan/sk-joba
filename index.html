@@ -75,6 +75,34 @@
         #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:15px; overflow-y:auto; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+
+/* Байланыс дерегін бір жолға жинау */
+.compact-contact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #f1f3f5;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    padding: 4px 12px;
+    margin: 4px auto;
+    text-decoration: none;
+    color: #212529;
+    font-weight: bold;
+    font-size: 14px;
+    width: fit-content; /* Мәтінге қарай созылады */
+}
+
+/* Аты-жөнін жеке жолға және кішірек шығару */
+.owner-name {
+    display: block;
+    font-size: 13px;
+    color: #6c757d;
+    margin-bottom: 5px;
+    font-weight: normal;
+}
+        
     </style>
 </head>
 <body>
@@ -260,58 +288,43 @@ function filterMarkers() {
         if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
             const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
             
-            // Байланыс деректерін дайындау (Тек мәтін және таңба)
-            let contactsHtml = '';
+            // 1. БАЙЛАНЫС ЖОЛЫ: Таңба + Нөмір бір жолда
+            let contactRow = '';
             if (i.phone) {
-                contactsHtml += `<div class="contact-line"><span>📞</span> <span>${i.phone}</span></div>`;
+                contactRow = `
+                    <a href="tel:${i.phone}" class="compact-contact">
+                        <span>📞</span><span>${i.phone}</span>
+                    </a>`;
             }
-            
-            // Қосымша байланыстар (email, т.б.)
-            try {
-                const extra = typeof i.contacts === 'string' ? JSON.parse(i.contacts || '[]') : (i.contacts || []);
-                extra.forEach(c => {
-                    if (c.val && c.val !== i.phone) {
-                        const icon = c.type === 'Email' ? '📧' : (c.type === 'WhatsApp' ? '💬' : '🔹');
-                        contactsHtml += `<div class="contact-line"><span>${icon}</span> <span>${c.val}</span></div>`;
-                    }
-                });
-            } catch(e) {}
 
-            // Маркерді құру
+            // 2. МАРКЕРДІ ҚҰРУ (Стильдеріңіз сақталды)
             const m = L.marker([i.lat, i.lon], {
                 icon: L.divIcon({ 
-                    html: `
-                        <div style="display:flex; flex-direction:column; align-items:center; position:relative;">
-                            <div style="background:${color}; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>
-                            <div class="marker-label" style="margin-top:2px;">${i.info.substring(0,10)}</div>
-                        </div>`,
-                    className: '', 
-                    iconSize: [40, 40], 
-                    iconAnchor: [20, 6] 
+                    html: `<div style="display:flex;flex-direction:column;align-items:center;">
+                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>
+                            <div class="marker-label">${i.info.substring(0,10)}</div>
+                           </div>`,
+                    className: '', iconSize: [40, 40], iconAnchor: [20, 6] 
                 })
             });
 
-            // Popup (Басқанда шығатын терезе)
+            // 3. МИНИ-АҚПАРАТ (Popup): Аты жеке жолда, нөмір бір жолда
             m.bindPopup(`
-                <div style="text-align:center; min-width:160px;">
-                    <b style="color:${color}; font-size:16px;">${i.info}</b><br>
-                    <span style="color:#555;">${i.title}</span><br>
-                    <div style="margin:5px 0;">${contactsHtml}</div>
-                    ${i.phone ? `<a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:8px; border-radius:4px; text-decoration:none; font-weight:bold; margin-top:5px;">Қоңырау шалу</a>` : ''}
-                </div>
+                <div style="text-align:center; min-width:140px;">
+                    <b style="color:${color}; font-size:15px; display:block;">${i.info}</b>
+                    <span class="owner-name">${i.title}</span> ${contactRow} </div>
             `);
             markersGroup.addLayer(m);
 
-            // Төмендегі тізім
+            // 4. ТӨМЕНГІ ТІЗІМДІ ЫҚШАМДАУ
             listHtml += `
-                <div class="list-item" style="padding:12px; border-bottom:1px solid #eee;">
-                    <div style="flex-grow:1;">
-                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
-                        <small><b>${i.title}</b></small>
-                        <div style="margin-top:5px;">${contactsHtml}</div>
+                <div class="list-item" style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="max-width: 60%;">
+                        <b style="color:${color}">${i.info}</b><br>
+                        <span class="owner-name">${i.title}</span>
                     </div>
                     <div>
-                        ${i.phone ? `<a href="tel:${i.phone}" style="font-size:24px; text-decoration:none;"></a>` : ''}
+                        ${contactRow}
                     </div>
                 </div>`;
         }
