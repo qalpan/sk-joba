@@ -74,12 +74,15 @@ app.get('/get-all', async (req, res) => {
 
 // САҚТАУ: Барлық жаңа жазбалар is_active = false болып сақталады
 app.post('/save-worker', async (req, res) => {
-    try {
-        const { name, phone, job, lat, lon, device_token } = req.body;
-        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
-        [name, phone, job, lat, lon, device_token]);
-        res.json({success: true});
-    } catch (err) { res.status(500).json({error: err.message}); }
+    const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
+    
+    // Егер адам VIP батырмасын басса, оның device_token-ын өшіріп сақтаймыз
+    // Сонда ол Админ растағанша онлайн тізіміне де кірмей тұрады
+    const tokenToSave = is_vip ? "VIP_WAITING_" + device_token : device_token;
+
+    await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
+    [name, phone, job, lat, lon, tokenToSave]);
+    res.json({success: true});
 });
 
 app.post('/save-goods', async (req, res) => {
