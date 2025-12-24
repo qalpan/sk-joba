@@ -99,31 +99,29 @@ app.get('/get-all', async (req, res) => {
         const now = new Date();
         const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
 
-        // 1. 24 сағаттан асқан ескі жарияланымдарды базадан автоматты өшіру
+        // 24 сағаттан асқандарды автоматты өшіру (логикаңыз сақталды)
         await pool.query("DELETE FROM workers WHERE created_at < $1", [oneDayAgo]);
         await pool.query("DELETE FROM goods WHERE created_at < $1", [oneDayAgo]);
         await pool.query("DELETE FROM orders WHERE created_at < $1", [oneDayAgo]);
 
-        // 2. Қалған жарияланымдарды алу
         const w = await pool.query('SELECT * FROM workers');
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
 
         const nowTs = Date.now();
+        // Пайдаланушының онлайн екенін тексеру (60 секунд ішінде)
         const isOnline = (token) => (nowTs - (onlineUsers[token] || 0)) < 60000;
 
-        // 3. Сүзгі: VIP болса көрсетеміз НЕМЕСЕ онлайн болса көрсетеміз
+        // КАРТАҒА ШЫҒАРУ ШАРТЫ:
+        // 1. Немесе VIP (is_active === true)
+        // 2. Немесе Тегін, бірақ қазір ОНЛАЙН болса
         const filterFn = (i) => i.is_active === true || (i.device_token && isOnline(i.device_token));
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
             orders: o.rows.filter(filterFn),
-            admin_all: { 
-                workers: w.rows, 
-                goods: g.rows, 
-                orders: o.rows 
-            }
+            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows } 
         });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
