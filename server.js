@@ -64,25 +64,26 @@ app.post('/user-ping', (req, res) => {
 // Барлық маркерлерді алу
 app.get('/get-all', async (req, res) => {
     try {
-        const w = await pool.query('SELECT * FROM workers');
-        const g = await pool.query('SELECT * FROM goods');
-        const o = await pool.query('SELECT * FROM orders');
+        // Уақытты ISO форматында алу үшін өзгертілген query
+        const w = await pool.query('SELECT *, created_at FROM workers');
+        const g = await pool.query('SELECT *, created_at FROM goods');
+        const o = await pool.query('SELECT *, created_at FROM orders');
 
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 60000;
-        
-        // Фильтр: Не VIP (is_active), не Онлайн пайдаланушы болуы керек
         const filterFn = (i) => i.is_active === true || (i.device_token && isOnline(i.device_token));
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
             orders: o.rows.filter(filterFn), 
-            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
+            admin_all: { 
+                workers: w.rows, 
+                goods: g.rows, 
+                orders: o.rows 
+            }
         });
-    } catch (err) { 
-        res.status(500).json({error: err.message}); 
-    }
+    } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 const processToken = (token, isVip) => isVip ? `WAITING_VIP_${token}` : token;
