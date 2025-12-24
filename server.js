@@ -96,19 +96,29 @@ app.post('/user-ping', (req, res) => {
 // Барлық маркерлерді алу
 app.get('/get-all', async (req, res) => {
     try {
-        // Уақытты ISO форматында алу үшін өзгертілген query
-        const w = await pool.query('SELECT *, created_at FROM workers');
-        const g = await pool.query('SELECT *, created_at FROM goods');
-        const o = await pool.query('SELECT *, created_at FROM orders');
+        const now = new Date();
+        const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
 
-        const now = Date.now();
-        const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 60000;
+        // 1. 24 сағаттан асқан ескі жарияланымдарды базадан автоматты өшіру
+        await pool.query("DELETE FROM workers WHERE created_at < $1", [oneDayAgo]);
+        await pool.query("DELETE FROM goods WHERE created_at < $1", [oneDayAgo]);
+        await pool.query("DELETE FROM orders WHERE created_at < $1", [oneDayAgo]);
+
+        // 2. Қалған жарияланымдарды алу
+        const w = await pool.query('SELECT * FROM workers');
+        const g = await pool.query('SELECT * FROM goods');
+        const o = await pool.query('SELECT * FROM orders');
+
+        const nowTs = Date.now();
+        const isOnline = (token) => (nowTs - (onlineUsers[token] || 0)) < 60000;
+
+        // 3. Сүзгі: VIP болса көрсетеміз НЕМЕСЕ онлайн болса көрсетеміз
         const filterFn = (i) => i.is_active === true || (i.device_token && isOnline(i.device_token));
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
-            orders: o.rows.filter(filterFn), 
+            orders: o.rows.filter(filterFn),
             admin_all: { 
                 workers: w.rows, 
                 goods: g.rows, 
