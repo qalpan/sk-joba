@@ -321,30 +321,44 @@ function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
     markersGroup.clearLayers();
     let listHtml = '';
+    const now = Date.now();
 
     rawData.forEach(i => {
-        // ТЕК АДМИН РҰҚСАТ БЕРГЕНДЕРДІ КӨРСЕТУ (is_active === 1 немесе true)
-        if (i.is_active == 1 || i.is_active == true) { 
+        // 1. 24 сағаттық тексеріс (Егер сервер өшіріп үлгермесе, клиентте көрсетпеу)
+        const createdAt = new Date(i.created_at).getTime();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        if (now - createdAt > twentyFourHours) return; // 24 сағаттан асса өткізіп жіберу
+
+        // 2. ОНЛАЙН СТАТУС ТЕКСЕРУ
+        // i.last_ping - серверден келетін соңғы активті уақыты
+        const isOnline = i.last_ping && (now - new Date(i.last_ping).getTime() < 60000); // 1 минут ішінде болса онлайн
+        
+        // 3. КӨРСЕТУ ШАРТЫ:
+        // Немесе VIP (is_active === 1), немесе Тегін бірақ Онлайн болса
+        if (i.is_active == 1 || isOnline) {
             
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
-                let contactsHtml = formatContacts(i);
+                const contactsHtml = formatContacts(i);
+
+                // VIP болса арнайы белгі қосу
+                const vipBadge = i.is_active == 1 ? ' <span style="color:gold;">👑 VIP</span>' : '';
 
                 const m = L.marker([i.lat, i.lon], {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.2);"></div>
+                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;${i.is_active == 1 ? 'box-shadow:0 0 10px gold;' : ''}"></div>
                                 <div class="marker-label">${i.info.substring(0,10)}</div>
                                </div>`,
                         className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
                     })
                 });
 
-                m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br>${contactsHtml}</div>`);
+                m.bindPopup(`<div style="text-align:center;"><b>${i.info}${vipBadge}</b><br>${contactsHtml}</div>`);
                 markersGroup.addLayer(m);
 
                 listHtml += `<div class="list-item">
-                    <div><b>${i.info}</b><br><small>${i.title}</small></div>
+                    <div><b>${i.info}${vipBadge}</b><br><small>${i.title}</small></div>
                     <div style="text-align:right;">${contactsHtml}</div>
                 </div>`;
             }
