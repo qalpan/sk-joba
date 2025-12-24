@@ -232,13 +232,23 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // 1. КАРТА ЖӘНЕ БАЗАЛЫҚ ҚАТАРЛАР (Бұрынғыша)
+    // 1. КАРТА ЖӘНЕ СТИЛЬДЕР (Ақ-қара карта қосылды)
     const map = L.map('map').setView([43.2389, 76.8897], 13);
     const baseLayers = {
-        color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        mono: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
+        'color': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        'mono': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png') // Ақ-қара стиль
     };
     baseLayers.color.addTo(map);
+
+    function changeMapStyle(style) {
+        if (style === 'mono') {
+            map.removeLayer(baseLayers.color);
+            baseLayers.mono.addTo(map);
+        } else {
+            map.removeLayer(baseLayers.mono);
+            baseLayers.color.addTo(map);
+        }
+    }
 
     const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, maxClusterRadius: 30 });
     map.addLayer(markersGroup);
@@ -254,34 +264,61 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             body: JSON.stringify({ token: myToken })
         }).catch(() => {});
     }
-    setInterval(pingOnlineStatus, 30000);
+    setInterval(pingOnlineStatus, 25000); // 25 сек сайын
     pingOnlineStatus();
 
-    // 3. СҮЗГІЛЕУ ЛОГИКАСЫ (VIP және ОНЛАЙН тексеруімен)
+    // 3. ДЕРЕКТЕРДІ ТЕКСЕРУ (Validation)
+    function validateData(data) {
+        // Телефон нөмірін тексеру: +7 және 10 сан
+        const phoneRegex = /^\+7\d{10}$/;
+        // Email тексеру: мәтін + @ + мәтін + . + мәтін
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        let contacts = JSON.parse(data.contacts || '[]');
+        for (let c of contacts) {
+            if (c.type === 'Тел' && !phoneRegex.test(c.val.replace(/\s/g, ""))) {
+                alert("Телефон қате! Формат: +77001234567");
+                return false;
+            }
+            if (c.type === 'Email' && !emailRegex.test(c.val)) {
+                alert("Email қате! Мысалы: name@mail.com");
+                return false;
+            }
+            if (!c.val || c.val.length < 2) {
+                alert("Деректерді толық толтырыңыз!");
+                return false;
+            }
+        }
+        
+        if (!data.name || data.name.length < 2) {
+            alert("Аты-жөніңізді жазыңыз!");
+            return false;
+        }
+        return true;
+    }
+
+    // 4. КАРТАҒА ШЫҒАРУ ЛОГИКАСЫ
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
         let listHtml = '';
         const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000; // 24 сағат миллисекундпен
+        const oneDay = 24 * 60 * 60 * 1000;
 
         rawData.forEach(i => {
-            // А) 24 сағаттық тексеріс: Ескі хабарландыруларды көрсетпеу
             const created = new Date(i.created_at).getTime();
             if (now - created > oneDay) return;
 
-            // Ә) Онлайн ба? (Соңғы 65 секундта сигнал болса)
-            const isOnline = i.last_ping && (now - new Date(i.last_ping).getTime() < 65000);
+            // ОНЛАЙН ТЕКСЕРУ (Өзіңізді әрқашан онлайн көрсету үшін myToken-ді тексереміз)
+            const isOnline = (i.device_token === myToken) || 
+                             (i.last_ping && (now - new Date(i.last_ping).getTime() < 70000));
             
-            // Б) Көрсету шарты: Егер VIP болса (is_active == 1) НЕМЕСЕ Тегін бірақ Онлайн болса
+            // Көрсету шарты: VIP немесе Онлайн
             if (i.is_active == 1 || isOnline) {
                 if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                    
-                    const isVIP = i.is_active == 1;
                     const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                    const contactsHtml = formatContacts(i);
+                    const isVIP = i.is_active == 1;
 
-                    // Картаға маркер қою
                     const m = L.marker([i.lat, i.lon], {
                         icon: L.divIcon({ 
                             html: `<div style="display:flex;flex-direction:column;align-items:center;">
@@ -291,23 +328,39 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                             className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
                         })
                     });
-
-                    m.bindPopup(`<div style="text-align:center;"><b>${i.info} ${isVIP ? '👑 VIP' : ''}</b><hr>${contactsHtml}</div>`);
+                    m.bindPopup(`<b>${i.info}</b><br>${formatContacts(i)}`);
                     markersGroup.addLayer(m);
 
-                    // Тізімге қосу
-                    listHtml += `<div class="list-item" style="${isVIP ? 'border-left: 5px solid gold; background:#fffdf0;' : ''}">
-                        <div><b>${i.info} ${isVIP ? '👑' : ''}</b><br><small>${i.title}</small></div>
-                        <div style="text-align:right;">${contactsHtml}</div>
+                    listHtml += `<div class="list-item" style="${isVIP ? 'border-left: 5px solid gold;' : ''}">
+                        <div><b>${i.info}</b><br><small>${i.title}</small></div>
+                        <div style="text-align:right;">${formatContacts(i)}</div>
                     </div>`;
                 }
             }
         });
         document.getElementById('dynamic-list-content').innerHTML = listHtml;
-        document.getElementById('item-count').innerText = markersGroup.getLayers().length;
     }
 
-    // 4. ДЕРЕКТЕРДІ ЖҮКТЕУ (Барлық категорияларды біріктіру)
+    // 5. САҚТАУ
+    function saveItem(type, isVip) {
+        let d = { is_vip: isVip, device_token: myToken };
+        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
+        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
+
+        if (!validateData(d)) return; // Тексеруден өтпесе тоқтайды
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
+            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
+            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
+            .then(() => { 
+                alert("Жарияланды! Картаны тексеріңіз."); 
+                loadMarkers(); 
+            });
+        }, () => alert("Геолокацияны қосыңыз!"));
+    }
+
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             adminDataFull = data.admin_all;
@@ -320,75 +373,16 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         });
     }
 
-    // 5. БАЙЛАНЫС ФОРМАТЫ (Дұрыс жөнделген)
     function formatContacts(item) {
         let html = '';
-        if (item.phone) html += `<div style="color:#d63384; font-weight:bold;">📞 ${item.phone}</div>`;
+        if (item.phone) html += `<div style="font-weight:bold;">📞 ${item.phone}</div>`;
         try {
             const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : (item.contacts || []);
-            arr.forEach(c => { 
-                if(c.val && c.val !== item.phone) html += `<div style="font-size:11px;">${c.type}: ${c.val}</div>`; 
-            });
+            arr.forEach(c => { if(c.val && c.val !== item.phone) html += `<div style="font-size:11px;">${c.type}: ${c.val}</div>`; });
         } catch(e) {}
         return html;
     }
 
-    // 6. САҚТАУ ФУНКЦИЯСЫ (GPS-пен)
-    function saveItem(type, isVip) {
-        let d = { is_vip: isVip, device_token: myToken };
-        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
-        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
-        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
-
-        navigator.geolocation.getCurrentPosition(pos => {
-            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
-            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
-            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
-            .then(() => { 
-                alert(isVip ? "VIP өтінім жіберілді. Төлемнен кейін 24 сағатқа қосылады." : "Жарияланды! Картада онлайн болғанда көрінеді."); 
-                loadMarkers(); 
-            });
-        }, () => alert("GPS рұқсат етіңіз!"));
-    }
-
-    // 7. АДМИН ПАНЕЛЬ (Sticky батырмасымен және скроллмен)
-    function renderAdmin() {
-        const modal = document.getElementById('admin-modal');
-        modal.style.display = 'block';
-        document.body.style.overflow = 'hidden'; 
-        if(!adminDataFull) return;
-
-        let h = `<div style="position:sticky; top:0; background:white; padding:15px; display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ddd; z-index:100;">
-                    <b style="font-size:18px;">Админ Панель</b> 
-                    <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">❌ ЖАБУ</button>
-                 </div><div style="padding:10px;"><table>`;
-        
-        ['workers', 'goods', 'orders'].forEach(cat => {
-            if(adminDataFull[cat]) {
-                adminDataFull[cat].forEach(item => {
-                    h += `<tr>
-                        <td style="font-size:10px;">${cat}</td>
-                        <td><b>${item.job || item.product_name || item.description}</b></td>
-                        <td>
-                            <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:${item.is_active?'#ffd700':'#eee'}; border:1px solid #ccc; padding:5px; border-radius:3px; cursor:pointer;">
-                                ${item.is_active ? '✅ VIP' : '🔘 VIP қылу'}
-                            </button>
-                            <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:#ff4d4d; color:white; border:none; padding:5px; margin-top:3px; border-radius:3px; cursor:pointer;">Жою</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-        });
-        document.getElementById('admin-content').innerHTML = h + "</table></div>";
-    }
-
-    // БАСҚА КӨМЕКШІ ФУНКЦИЯЛАР
-    function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; document.body.style.overflow = 'auto'; location.hash = ''; }
-    function toggleActive(id, type, val) { 
-        fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})})
-        .then(() => { loadMarkers(); setTimeout(renderAdmin, 500); }); 
-    }
-    function admDel(id, type) { if(confirm("Жою?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:'admin777'})}).then(()=> { loadMarkers(); setTimeout(renderAdmin, 500); }); }
     function v(id){ return document.getElementById(id).value; }
     function collectContacts(id){ 
         let c = []; 
@@ -399,10 +393,31 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         return JSON.stringify(c);
     }
 
-    // ПАРАҚШАНЫ БАСҚАРУ
-    window.onhashchange = () => { if(location.hash === '#admin777' && prompt("Құпия сөз:") === 'admin777') renderAdmin(); else closeAdmin(); };
+    function renderAdmin() {
+        const modal = document.getElementById('admin-modal');
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        let h = `<div style="position:sticky; top:0; background:white; padding:10px; display:flex; justify-content:space-between; border-bottom:1px solid #ddd; z-index:1000;">
+                    <b>Админ</b> <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:5px 15px; border-radius:5px;">X</button>
+                 </div><table>`;
+        ['workers', 'goods', 'orders'].forEach(cat => {
+            if(adminDataFull[cat]) adminDataFull[cat].forEach(item => {
+                h += `<tr><td>${cat}</td><td>${item.job || item.product_name}</td><td>
+                    <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:${item.is_active?'gold':'#eee'}">VIP</button>
+                    <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; color:white;">Жою</button>
+                </td></tr>`;
+            });
+        });
+        document.getElementById('admin-content').innerHTML = h + "</table>";
+    }
+
+    function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; document.body.style.overflow = 'auto'; location.hash = ''; }
+    function toggleActive(id, type, val) { fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})}).then(()=>loadMarkers()); }
+    function admDel(id, type) { if(confirm("Жою?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:'admin777'})}).then(()=>loadMarkers()); }
+
+    window.onhashchange = () => { if(location.hash === '#admin777' && prompt("Пароль:") === 'admin777') renderAdmin(); else closeAdmin(); };
     loadMarkers();
-    setInterval(loadMarkers, 15000); // 15 секунд сайын картаны жаңартып тұру
+    setInterval(loadMarkers, 15000);
 </script>
 </body>
 </html>
