@@ -232,7 +232,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // КАРТА ЖӘНЕ КЛАСТЕРЛЕР
+    // 1. КАРТА ЖӘНЕ КАТАРЛАР (Ақ-қара карта функциясымен)
     const map = L.map('map').setView([43.2389, 76.8897], 13);
     const baseLayers = {
         'color': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
@@ -240,29 +240,56 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     };
     baseLayers.color.addTo(map);
 
+    // АҚ-ҚАРА КАРТАҒА АУЫСТЫРУ ФУНКЦИЯСЫ
+    function changeMapStyle(style) {
+        if (style === 'mono') {
+            map.removeLayer(baseLayers.color);
+            baseLayers.mono.addTo(map);
+        } else {
+            map.removeLayer(baseLayers.mono);
+            baseLayers.color.addTo(map);
+        }
+    }
+
     const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, maxClusterRadius: 30 });
     map.addLayer(markersGroup);
 
     let rawData = [];
     let adminDataFull = null;
 
-    // ПАЙДАЛАНУШЫ ОНЛАЙН СТАТУСЫ
-    function pingOnlineStatus() {
-        fetch(API + '/user-ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: myToken }) }).catch(()=>{});
+    // 2. БАЙЛАНЫС ҚОСУ (Row қосу функциясы)
+    function addContactRow(containerId) {
+        const div = document.createElement('div');
+        div.className = 'contact-row';
+        div.innerHTML = `
+            <select style="width:30%" class="c-type">
+                <option>Тел</option><option>Email</option><option>WhatsApp</option>
+            </select>
+            <input style="width:55%" class="c-val" placeholder="Дерек">
+            <button onclick="this.parentElement.remove()" style="width:10%; color:red; border:none; background:none; cursor:pointer;">✕</button>
+        `;
+        document.getElementById(containerId).appendChild(div);
     }
-    setInterval(pingOnlineStatus, 25000);
-    pingOnlineStatus();
 
-    // VIP БАСТАУ (Төлем ақпаратын көрсету)
-    function initVIP(type) {
-        const kaspi = "8 707 123 45 67 (Каспи / Халық)";
-        const msg = `💎 VIP ЖАРИЯЛАУ (490₸)\n\n📍 Төлем нөмірі: ${kaspi}\n\nТөлем жасаған соң, админ хабарламаңызды тексеріп, 24 сағатқа картаға шығарады. Жалғастырасыз ба?`;
-        if(confirm(msg)) {
-            saveItem(type, true);
+    // 3. ӨШІРУ ФУНКЦИЯСЫ (Хабар иесі үшін және Админ үшін)
+    function deleteItem(id, type, isAdmin = false) {
+        const token = isAdmin ? 'admin777' : myToken;
+        if(confirm(isAdmin ? "Админ: Жоюды растайсыз ба?" : "Хабарламаңызды өшіресіз бе?")) {
+            fetch(API + '/delete-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, type, token })
+            }).then(res => {
+                if(res.ok) {
+                    alert("Өшірілді");
+                    loadMarkers();
+                    if(isAdmin) setTimeout(renderAdmin, 500);
+                }
+            });
         }
     }
 
-    // КАРТАДАҒЫ МАРКЕРЛЕРДІ СҮЗГІЛЕУ
+    // 4. КАРТАДАҒЫ МАРКЕРЛЕР (Істеп тұрған сүзгі)
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
@@ -271,18 +298,15 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
 
         rawData.forEach(i => {
             const created = new Date(i.created_at).getTime();
-            if (now - created > 86400000) return; // 24 сағаттан кейін автоматты түрде жоғалады
+            if (now - created > 86400000) return; 
 
             const isOnline = i.last_ping && (now - new Date(i.last_ping).getTime() < 70000);
             const isOwner = i.device_token === myToken;
 
-            // ШАРТ: Админ қосқан болса (VIP) НЕМЕСЕ тегін болса бірақ онлайн болса
             if (i.is_active == 1 || isOnline || isOwner) {
                 if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                     const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                    
-                    // ХАБАРЛАМА ИЕСІНЕ ҒАНА КӨРІНЕТІН ӨШІРУ БАТЫРМАСЫ
-                    let deleteBtn = isOwner ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` : '';
+                    let deleteBtn = isOwner ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red;color:white;border:none;padding:3px 7px;border-radius:3px;cursor:pointer;margin-top:5px;">🗑️ Өшіру</button>` : '';
 
                     const m = L.marker([i.lat, i.lon], {
                         icon: L.divIcon({ 
@@ -293,7 +317,6 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                             className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
                         })
                     });
-
                     m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br>${formatContacts(i)}${deleteBtn}</div>`);
                     markersGroup.addLayer(m);
 
@@ -307,72 +330,39 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         document.getElementById('dynamic-list-content').innerHTML = listHtml;
     }
 
-    // АДМИН ПАНЕЛЬ (ЖӨНДЕЛГЕН)
-function renderAdmin() {
-    const modal = document.getElementById('admin-modal');
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden'; 
+    // 5. АДМИН ПАНЕЛЬ (Толық ақпаратпен және скроллмен)
+    function renderAdmin() {
+        const modal = document.getElementById('admin-modal');
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden'; 
+        if(!adminDataFull) return;
 
-    if(!adminDataFull) return;
-
-    let h = `
-        <div style="position: sticky; top: -15px; background: white; padding: 15px 0; border-bottom: 2px solid #ddd; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
-            <h3 style="margin:0;">Басқару панелі</h3>
-            <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">❌ ЖАБУ</button>
-        </div>
-        <table style="width:100%; border-collapse: collapse;">
-            <thead>
-                <tr style="background:#eee;">
-                    <th style="padding:5px; border:1px solid #ddd;">Уақыты</th>
-                    <th style="padding:5px; border:1px solid #ddd;">Хабарлама / Иесі</th>
-                    <th style="padding:5px; border:1px solid #ddd;">Байланыс</th>
-                    <th style="padding:5px; border:1px solid #ddd;">Әрекет</th>
-                </tr>
-            </thead>
-            <tbody>`;
-
-    ['workers', 'goods', 'orders'].forEach(cat => {
-        if(adminDataFull[cat]) {
-            adminDataFull[cat].forEach(item => {
-                const date = new Date(item.created_at).toLocaleString('kk-KZ');
-                // Хабарламаның негізгі мәтіні
-                const infoText = item.job || item.product_name || item.description || "Мәлімет жоқ";
-                // Хабарлама иесінің аты
-                const owner = item.name || item.seller_name || item.client_name || "Аноним";
-                // Байланыс деректерін форматтау (formatContacts функциясын қолданамыз)
-                const contacts = formatContacts(item);
-
-                h += `<tr>
-                    <td style="font-size:10px; padding:5px; border:1px solid #ddd;">${date}</td>
-                    <td style="padding:5px; border:1px solid #ddd;">
-                        <b>${infoText}</b><br>
-                        <small style="color:gray;">Иесі: ${owner}</small>
-                    </td>
-                    <td style="padding:5px; border:1px solid #ddd; font-size:10px;">${contacts}</td>
-                    <td style="padding:5px; border:1px solid #ddd; text-align:center;">
-                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" 
-                                style="background:${item.is_active ? 'gold' : '#eee'}; padding:5px; border-radius:3px; border:1px solid #ccc; width:100%; margin-bottom:5px; cursor:pointer;">
-                            ${item.is_active ? 'VIP ON' : 'VIP OFF'}
-                        </button>
-                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" 
-                                style="background:red; color:white; border:none; padding:5px; border-radius:3px; width:100%; cursor:pointer;">Жою</button>
-                    </td>
-                </tr>`;
-            });
-        }
-    });
-
-    h += `</tbody></table>`;
-    document.getElementById('admin-content').innerHTML = h;
-}
-
-    function closeAdmin() { 
-        document.getElementById('admin-modal').style.display = 'none'; 
-        document.body.style.overflow = 'auto'; 
-        location.hash = ''; 
+        let h = `<div style="position:sticky; top:0; background:white; padding:15px; border-bottom:2px solid #ddd; display:flex; justify-content:space-between; z-index:1000;">
+                    <b>Админ Панель</b>
+                    <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">❌ ЖАБУ</button>
+                 </div><table style="width:100%; font-size:12px;">`;
+        
+        ['workers', 'goods', 'orders'].forEach(cat => {
+            if(adminDataFull[cat]) {
+                adminDataFull[cat].forEach(item => {
+                    h += `<tr>
+                        <td>${new Date(item.created_at).toLocaleString('kk-KZ')}</td>
+                        <td><b>${item.job || item.product_name || item.description}</b><br>${item.name || ''}</td>
+                        <td>${formatContacts(item)}</td>
+                        <td>
+                            <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:${item.is_active?'gold':'#eee'}">VIP</button>
+                            <button onclick="deleteItem(${item.id},'${cat.slice(0,-1)}', true)" style="background:red; color:white;">Жою</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+        });
+        document.getElementById('admin-content').innerHTML = h + "</table>";
     }
 
-    // БАСҚА ФУНКЦИЯЛАР (Өзгеріссіз сақталды)
+    function closeAdmin() { document.getElementById('admin-modal').style.display = 'none'; document.body.style.overflow = 'auto'; location.hash = ''; }
+
+    // БАСҚА ҚАЖЕТТІ ФУНКЦИЯЛАР
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
             adminDataFull = data.admin_all;
@@ -388,57 +378,16 @@ function renderAdmin() {
         let html = '';
         try {
             const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : (item.contacts || []);
-            arr.forEach(c => { html += `<div style="font-size:11px;">${c.type}: ${c.val}</div>`; });
+            arr.forEach(c => { html += `<div>${c.type}: ${c.val}</div>`; });
         } catch(e) {}
         return html;
     }
 
-    function saveItem(type, isVip) {
-        let d = { is_vip: isVip, device_token: myToken };
-        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
-        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
-        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
+    function pingOnlineStatus() { fetch(API + '/user-ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: myToken }) }).catch(()=>{}); }
+    setInterval(pingOnlineStatus, 25000);
+    pingOnlineStatus();
 
-        navigator.geolocation.getCurrentPosition(pos => {
-            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
-            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
-            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
-            .then(() => { 
-                alert("Жарияланды! VIP мәртебесін админ растаған соң көресіз."); 
-                loadMarkers(); 
-            });
-        }, () => alert("GPS қосыңыз!"));
-    }
-
-    function deleteItem(id, type) { if(confirm("Өшіруді растайсыз ба?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:myToken})}).then(()=>loadMarkers()); }
     function toggleActive(id, type, val) { fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})}).then(()=>loadMarkers()); }
-    function admDel(id, type) {
-    if(confirm("Админ: Бұл хабарламаны өшіруді растайсыз ба?")) {
-        fetch(API + '/delete-item', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, type: type, token: 'admin777' })
-        })
-        .then(res => {
-            if(res.ok) {
-                alert("Жойылды!");
-                // 1. Картадағы маркерлерді жаңарту
-                loadMarkers(); 
-                // 2. Админ панельдегі тізімді де бірден жаңарту
-                setTimeout(() => {
-                    fetch(API + '/get-all')
-                        .then(r => r.json())
-                        .then(data => {
-                            adminDataFull = data.admin_all;
-                            renderAdmin(); // Тізімді қайта сызады
-                        });
-                }, 500);
-            } else {
-                alert("Қате: Өшіру мүмкін болмады.");
-            }
-        });
-    }
-}
     function v(id){ return document.getElementById(id).value; }
     function collectContacts(id) {
         let c = []; document.getElementById(id).querySelectorAll('.contact-row').forEach(r => {
