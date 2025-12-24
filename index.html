@@ -72,8 +72,54 @@
         .contact-row { display: flex; gap: 5px; margin-top: 5px; }
         .add-contact-btn { background: #6c757d; font-size: 12px; padding: 5px; width: auto; margin-top: 5px; }
 
-        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:15px; overflow-y:auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+/* Админ панельдің негізгі терезесі */
+#admin-modal { 
+    display:none; 
+    position:fixed; 
+    top:0; 
+    left:0; 
+    width:100%; 
+    height:100%; 
+    background:white; 
+    z-index:10000; /* Картадан жоғары тұруы үшін */
+    padding:15px; 
+    overflow-y: scroll; /* Скролл міндетті түрде жұмыс істеуі үшін */
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+/* Жабу батырмасы бар жоғарғы бөлік */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky; /* Экранның жоғары жағында қатып тұрады */
+    top: 0;
+    background: white;
+    padding: 10px 0;
+    border-bottom: 2px solid #eee;
+    z-index: 10001;
+}
+
+/* Кесте стилі */
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 15px; 
+    font-size: 12px; 
+}
+
+th, td { 
+    border: 1px solid #ddd; 
+    padding: 10px 8px; 
+    text-align: left; 
+}
+
+th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы да қатып тұрады */
+
+/* Батырмалар стилі */
+.adm-btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+.adm-btn-vip { background: #ffa500; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-bottom: 3px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
 
 /* Байланыс дерегін бір жолға жинау */
@@ -354,29 +400,67 @@
             alert("Геолокация қажет! Картаға шығу үшін GPS-ті қосыңыз.");
         });
     }
-
-    // АДМИН ПАНЕЛЬ
+// АДМИН ПАНЕЛЬДІ РЕНДЕРИНГ ЖАСАУ
     function renderAdmin() {
-        document.getElementById('admin-modal').style.display = 'block';
+        const modal = document.getElementById('admin-modal');
+        modal.style.display = 'block';
+        
+        // Беттің негізгі скроллын тоқтату (фон жылжымауы үшін)
+        document.body.style.overflow = 'hidden';
+
         if(!adminDataFull) return;
-        let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
+
+        // Жабу батырмасын "sticky" (қатып тұратын) қылып жасау
+        let h = `
+            <div style="position: sticky; top: -15px; background: white; padding: 10px 0; border-bottom: 2px solid #eee; display: flex; justify-content: space-between; align-items: center; z-index: 100;">
+                <h3 style="margin:0;">Басқару панелі</h3>
+                <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">❌ ЖАБУ</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Уақыты</th>
+                            <th>Түрі</th>
+                            <th>Ақпарат</th>
+                            <th>Байланыстар</th>
+                            <th>Әрекет</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
         ['workers', 'goods', 'orders'].forEach(cat => {
-            adminDataFull[cat].forEach(item => {
-                const date = new Date(item.created_at).toLocaleString('kk-KZ');
-                const contacts = formatContacts(item);
-                h += `<tr>
-                    <td>${date}</td>
-                    <td>${cat}</td>
-                    <td><b>${item.job || item.product_name || item.description}</b></td>
-                    <td>${contacts}</td>
-                    <td>
-                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
-                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
-                    </td>
-                </tr>`;
-            });
+            if(adminDataFull[cat]) {
+                adminDataFull[cat].forEach(item => {
+                    const date = new Date(item.created_at).toLocaleString('kk-KZ');
+                    // item.contacts немесе phone арқылы байланысты анықтау
+                    const contacts = formatContacts(item);
+                    
+                    h += `<tr>
+                        <td>${date}</td>
+                        <td>${cat === 'workers' ? '👷' : (cat === 'goods' ? '📦' : '📋')}</td>
+                        <td><b>${item.job || item.product_name || item.description}</b><br><small>${item.name || item.seller_name || item.client_name}</small></td>
+                        <td><div style="font-size:10px;">${contacts}</div></td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:5px;">
+                                <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; color:white; border:none; padding:4px; border-radius:3px; font-size:10px; cursor:pointer;">${item.is_active ? 'OFF' : 'VIP'}</button>
+                                <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; color:white; border:none; padding:4px; border-radius:3px; font-size:10px; cursor:pointer;">Жою</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+            }
         });
-        document.getElementById('admin-content').innerHTML = h + "</table>";
+
+        h += `</tbody></table></div>`;
+        document.getElementById('admin-content').innerHTML = h;
+    }
+
+    // Админ панельді жабу функциясы
+    function closeAdmin() {
+        document.getElementById('admin-modal').style.display = 'none';
+        document.body.style.overflow = 'auto'; // Скроллды қайта қосу
+        location.hash = ''; 
     }
 
     function initVIP(type) { 
@@ -385,29 +469,59 @@
     }
 
     function deleteItem(id, type) {
-        if(confirm("Өшіресіз бе?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:myToken})}).then(()=>loadMarkers());
+        if(confirm("Өшіресіз бе?")) {
+            fetch(API+'/delete-item',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({id, type, token:myToken})
+            }).then(() => {
+                alert("Жойылды");
+                loadMarkers();
+            });
+        }
     }
 
     function toggleActive(id, type, val) {
-        fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})}).then(()=>loadMarkers());
+        fetch(API+'/admin/toggle-active',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({id, type, active:val})
+        }).then(() => {
+            alert("Статус өзгерді");
+            loadMarkers();
+            setTimeout(renderAdmin, 500); // Тізімді жаңарту
+        });
     }
 
     function admDel(id, type) {
-        if(confirm("Админ: Өшіру?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:'admin777'})}).then(()=>loadMarkers());
+        if(confirm("Админ: Нақты өшіресіз бе?")) {
+            fetch(API+'/delete-item', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({id, type, token:'admin777'})
+            }).then(r => r.json()).then(res => {
+                alert("Дерек базадан өшірілді");
+                loadMarkers();
+                setTimeout(renderAdmin, 500); // Тізімді жаңарту
+            });
+        }
     }
 
     window.onhashchange = () => {
         if(location.hash === '#admin777') {
-            if(prompt("Құпия сөз:") === 'admin777') renderAdmin();
+            const pass = prompt("Құпия сөз:");
+            if(pass === 'admin777') renderAdmin();
             else location.hash = '';
-        } else document.getElementById('admin-modal').style.display = 'none';
+        } else {
+            closeAdmin();
+        }
     };
 
     function v(id){ return document.getElementById(id).value; }
     
     // БАСҚАРУШЫ ТАЙМЕРЛЕР
     loadMarkers();
-    setInterval(loadMarkers, 15000); // 15 сек сайын картаны жаңарту
+    setInterval(loadMarkers, 15000);
 </script>
 </body>
 </html>
