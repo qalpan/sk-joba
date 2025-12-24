@@ -288,60 +288,63 @@ function filterMarkers() {
         if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
             const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
             
-            // 1. БАЙЛАНЫС ЖОЛЫ: Таңба + Нөмір бір жолда
-            let contactRow = '';
-            if (i.phone) {
-                contactRow = `
-                    <a href="tel:${i.phone}" class="compact-contact">
-                        <span>📞</span><span>${i.phone}</span>
-                    </a>`;
-            }
+            // 1. БАРЛЫҚ БАЙЛАНЫС ТҮРЛЕРІН ЖИНАҚТАУ (Бір жолдан)
+            let contactsHtml = '';
+            try {
+                const arr = typeof i.contacts === 'string' ? JSON.parse(i.contacts || '[]') : (i.contacts || []);
+                // Егер contacts бос болса, негізгі phone-ды қолданамыз
+                if (arr.length === 0 && i.phone) arr.push({type: 'Тел', val: i.phone});
+                
+                arr.forEach(c => {
+                    const icon = c.type === 'Тел' ? '📞' : (c.type === 'Email' ? '📧' : '🔹');
+                    if(c.type === 'Тел' || c.type === 'WhatsApp') {
+                        contactsHtml += `<a href="tel:${c.val}" class="compact-contact"><span>${icon}</span> <span>${c.val}</span></a>`;
+                    } else {
+                        contactsHtml += `<div class="compact-contact"><span>${icon}</span> <span>${c.val}</span></div>`;
+                    }
+                });
+            } catch(e) { contactsHtml = i.phone; }
 
-            // 2. ӨШІРУ БАТЫРМАСЫ: Тек хабарлама иесіне (token сәйкес келсе) көрінеді
-            let deleteBtn = '';
-            if (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) {
-                deleteBtn = `<button onclick="deleteItem(${i.id}, '${i.type}')" 
-                             style="background:#dc3545; color:white; border:none; padding:4px 10px; border-radius:15px; font-size:11px; margin-top:5px; cursor:pointer;">
-                             🗑️ Жою</button>`;
-            }
+            // 2. ӨШІРУ БАСПАСЫ (Тек хабарлама иесіне)
+            let deleteBtn = (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) 
+                ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` 
+                : '';
 
-            // 3. МАРКЕРДІ ҚҰРУ
             const m = L.marker([i.lat, i.lon], {
                 icon: L.divIcon({ 
                     html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>
+                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>
                             <div class="marker-label">${i.info.substring(0,10)}</div>
                            </div>`,
                     className: '', iconSize: [40, 40], iconAnchor: [20, 6] 
                 })
             });
 
-            // 4. МИНИ-АҚПАРАТ (Popup): Барлығы сіз сұраған ретпен
+            // КАРТАДАҒЫ ПОПУП
             m.bindPopup(`
-                <div style="text-align:center; min-width:150px; font-family:sans-serif;">
-                    <b style="color:${color}; font-size:16px; display:block; margin-bottom:2px;">${i.info}</b>
-                    <span class="owner-name" style="margin-bottom:8px;">${i.title}</span>
-                    ${contactRow}
-                    <div style="margin-top:5px;">${deleteBtn}</div>
+                <div style="text-align:center; min-width:140px;">
+                    <b style="color:${color}; font-size:15px; display:block;">${i.info}</b>
+                    <span class="owner-name" style="display:block; margin-bottom:5px;">${i.title}</span>
+                    <div style="display:flex; flex-direction:column; gap:3px;">${contactsHtml}</div>
+                    ${deleteBtn}
                 </div>
             `);
             markersGroup.addLayer(m);
 
-            // 5. ТӨМЕНГІ ТІЗІМ
+            // ТӨМЕНГІ ТІЗІМ
             listHtml += `
-                <div class="list-item" style="padding:12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                    <div style="max-width: 65%;">
-                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
-                        <span class="owner-name">${i.title}</span>
+                <div class="list-item" style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <b style="color:${color}">${i.info}</b><br>
+                        <span class="owner-name">${i.title}</span><br>
                         ${deleteBtn}
                     </div>
-                    <div style="text-align:right;">
-                        ${contactRow}
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                        ${contactsHtml}
                     </div>
                 </div>`;
         }
     });
-    
     document.getElementById('dynamic-list-content').innerHTML = listHtml;
     document.getElementById('item-count').innerText = markersGroup.getLayers().length;
 }
@@ -365,27 +368,31 @@ function filterMarkers() {
         }, () => alert("GPS қосыңыз!"));
     }
 
-    function renderAdmin() {
-        document.getElementById('admin-modal').style.display = 'block';
-        if(!adminDataFull) return;
-        let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
-        ['workers', 'goods', 'orders'].forEach(cat => {
-            adminDataFull[cat].forEach(item => {
-                const date = new Date(item.created_at).toLocaleString('kk-KZ');
-                h += `<tr>
-                    <td>${date}</td>
-                    <td>${cat}</td>
-                    <td>${item.job || item.product_name || item.description}</td>
-                    <td>${formatContacts(item.contacts)}</td>
-                    <td>
-                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
-                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
-                    </td>
-                </tr>`;
-            });
+// Админ панельді рендеринг жасау
+function renderAdmin() {
+    document.getElementById('admin-modal').style.display = 'block';
+    if(!adminDataFull) return;
+    let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
+    ['workers', 'goods', 'orders'].forEach(cat => {
+        adminDataFull[cat].forEach(item => {
+            const date = new Date(item.created_at).toLocaleString('kk-KZ');
+            // formatContacts функциясы барлық деректі (тел, email т.б.) шығарады
+            const allContacts = formatContacts(item.contacts || JSON.stringify([{type:'Тел', val: item.phone}]));
+            
+            h += `<tr>
+                <td>${date}</td>
+                <td>${cat}</td>
+                <td><b>${item.job || item.product_name || item.description}</b><br><small>${item.name || item.seller_name || item.client_name}</small></td>
+                <td>${allContacts}</td> 
+                <td>
+                    <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
+                    <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
+                </td>
+            </tr>`;
         });
-        document.getElementById('admin-content').innerHTML = h + "</table>";
-    }
+    });
+    document.getElementById('admin-content').innerHTML = h + "</table>";
+}
 
     // Қалған функциялар сіздің кодыңызбен бірдей
     function initVIP(type) { 
