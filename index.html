@@ -19,18 +19,34 @@
 
         #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
         
-        .marker-label {
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid #666;
-            border-radius: 4px;
-            padding: 2px 5px;
-            font-size: 11px;
-            font-weight: bold;
-            white-space: nowrap;
-            color: #333;
-            text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        }
+        /* Маркер жазуларының қабаттасуын реттеу */
+.marker-label {
+    background: white;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1000; /* Жазу маркердің артында қалмауы үшін */
+    pointer-events: none; /* Жазу маркерді басуға кедергі жасамауы керек */
+}
+
+/* Телефон нөмірі мен таңбасын бір жолға қою */
+.contact-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* Таңба мен нөмір арасындағы қашықтық */
+    background: #f0fdf4; /* Сәл жасылдау фон */
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 8px 0;
+    color: #166534;
+    font-weight: bold;
+    font-size: 14px;
+}
 
         #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; }
         .list-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -235,7 +251,6 @@ function formatContacts(item) {
     return html;
 }
 
-// 2. Маркерлерді картаға және тізімге шығару функциясын жаңарту
 function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
     markersGroup.clearLayers();
@@ -245,41 +260,60 @@ function filterMarkers() {
         if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
             const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
             
-            // Байланыс мәтіндерін (нөмір, email) дайындаймыз
-            const contactDisplay = formatContacts(i);
+            // Байланыс деректерін дайындау (Тек мәтін және таңба)
+            let contactsHtml = '';
+            if (i.phone) {
+                contactsHtml += `<div class="contact-line"><span>📞</span> <span>${i.phone}</span></div>`;
+            }
+            
+            // Қосымша байланыстар (email, т.б.)
+            try {
+                const extra = typeof i.contacts === 'string' ? JSON.parse(i.contacts || '[]') : (i.contacts || []);
+                extra.forEach(c => {
+                    if (c.val && c.val !== i.phone) {
+                        const icon = c.type === 'Email' ? '📧' : (c.type === 'WhatsApp' ? '💬' : '🔹');
+                        contactsHtml += `<div class="contact-line"><span>${icon}</span> <span>${c.val}</span></div>`;
+                    }
+                });
+            } catch(e) {}
 
+            // Маркерді құру
             const m = L.marker([i.lat, i.lon], {
                 icon: L.divIcon({ 
-                    html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);"></div><div class="marker-label">${i.info.substring(0,12)}</div>`,
-                    className: '', iconSize: [60, 40], iconAnchor: [30, 7] 
+                    html: `
+                        <div style="display:flex; flex-direction:column; align-items:center; position:relative;">
+                            <div style="background:${color}; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>
+                            <div class="marker-label" style="margin-top:2px;">${i.info.substring(0,10)}</div>
+                        </div>`,
+                    className: '', 
+                    iconSize: [40, 40], 
+                    iconAnchor: [20, 6] 
                 })
             });
 
-            // КАРТАДАҒЫ МАРКЕР: Басқанда тек керекті нөмірлер мен емаил шығады
+            // Popup (Басқанда шығатын терезе)
             m.bindPopup(`
-                <div style="text-align:center; min-width:160px; font-family:sans-serif;">
-                    <b style="color:${color}; font-size:15px; display:block; margin-bottom:5px;">${i.info}</b>
-                    <span style="color:#666;">${i.title}</span>
-                    <hr style="margin:8px 0; border:0; border-top:1px solid #eee;">
-                    <div style="margin-bottom:10px;">${contactDisplay}</div>
-                    ${i.phone ? `<a href="tel:${i.phone}" style="background:green; color:white; padding:8px; border-radius:5px; text-decoration:none; display:block; font-weight:bold;">📞 Қоңырау</a>` : ''}
+                <div style="text-align:center; min-width:160px;">
+                    <b style="color:${color}; font-size:16px;">${i.info}</b><br>
+                    <span style="color:#555;">${i.title}</span><br>
+                    <div style="margin:5px 0;">${contactsHtml}</div>
+                    ${i.phone ? `<a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:8px; border-radius:4px; text-decoration:none; font-weight:bold; margin-top:5px;">Қоңырау шалу</a>` : ''}
                 </div>
             `);
             markersGroup.addLayer(m);
 
-            // ТӨМЕНГІ ТІЗІМ: Мұнда да нөмірлер мен емаил бірден көрініп тұрады
+            // Төмендегі тізім
             listHtml += `
-                <div class="list-item" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee; background:white;">
+                <div class="list-item" style="padding:12px; border-bottom:1px solid #eee;">
                     <div style="flex-grow:1;">
-                        <b style="color:${color}; font-size:16px;">${i.info}</b><br>
-                        <small style="color:#888;">${i.title}</small>
-                        <div style="margin-top:8px;">${contactDisplay}</div>
+                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
+                        <small><b>${i.title}</b></small>
+                        <div style="margin-top:5px;">${contactsHtml}</div>
                     </div>
-                    <div style="margin-left:10px;">
+                    <div>
                         ${i.phone ? `<a href="tel:${i.phone}" style="font-size:24px; text-decoration:none;">📞</a>` : ''}
                     </div>
-                </div>
-            `;
+                </div>`;
         }
     });
     document.getElementById('dynamic-list-content').innerHTML = listHtml;
