@@ -317,59 +317,42 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         }).catch(err => console.error("Load error:", err));
     }
 
-    // КАРТАҒА ЖӘНЕ ТІЗІМГЕ ШЫҒАРУ
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        let listHtml = '';
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    let listHtml = '';
 
-        rawData.forEach(i => {
+    rawData.forEach(i => {
+        // ТЕК АДМИН РҰҚСАТ БЕРГЕНДЕРДІ КӨРСЕТУ (is_active === 1 немесе true)
+        if (i.is_active == 1 || i.is_active == true) { 
+            
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
-                
-                // Байланыстарды дайындау
                 let contactsHtml = formatContacts(i);
 
-                // Өшіру батырмасы (иесіне ғана)
-                let deleteBtn = (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) 
-                    ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` 
-                    : '';
-
-                // Карта маркері
                 const m = L.marker([i.lat, i.lon], {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>
+                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.2);"></div>
                                 <div class="marker-label">${i.info.substring(0,10)}</div>
                                </div>`,
                         className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
                     })
                 });
 
-                m.bindPopup(`
-                    <div style="text-align:center; min-width:150px;">
-                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
-                        <small>${i.title}</small><hr style="margin:5px 0;">
-                        ${contactsHtml}
-                        ${deleteBtn}
-                    </div>
-                `);
+                m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br>${contactsHtml}</div>`);
                 markersGroup.addLayer(m);
 
-                // Төменгі тізім
                 listHtml += `<div class="list-item">
-                    <div>
-                        <b style="color:${color}">${i.info}</b><br>
-                        <small>${i.title}</small><br>
-                        ${deleteBtn}
-                    </div>
-                    <div style="text-align:right; max-width:50%;">${contactsHtml}</div>
+                    <div><b>${i.info}</b><br><small>${i.title}</small></div>
+                    <div style="text-align:right;">${contactsHtml}</div>
                 </div>`;
             }
-        });
-        document.getElementById('dynamic-list-content').innerHTML = listHtml;
-        document.getElementById('item-count').innerText = markersGroup.getLayers().length;
-    }
+        }
+    });
+    document.getElementById('dynamic-list-content').innerHTML = listHtml;
+    document.getElementById('item-count').innerText = markersGroup.getLayers().length;
+}
 
     // ДЕРЕКТІ САҚТАУ
     function saveItem(type, isVip) {
