@@ -210,58 +210,80 @@
         });
     }
 
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        let listHtml = '';
-        let count = 0;
+// 1. Байланыс ақпаратын мәтін түрінде дайындау функциясы
+function formatContacts(item) {
+    let html = '';
+    
+    // Егер басты телефон нөмірі болса, оны бірден шығару
+    if (item.phone) {
+        html += `<div class="contact-badge" style="font-size:14px; color:#d63384;">${item.phone}</div>`;
+    }
 
-        rawData.forEach(i => {
-            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                count++;
-                const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
-                const contactsHtml = formatContacts(i.contacts);
-
-                const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ 
-                        html: `<div style="display:flex;flex-direction:column;align-items:center;"><div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);"></div><div class="marker-label">${i.info.substring(0,12)}</div></div>`,
-                        className: '', iconSize: [60, 40], iconAnchor: [30, 7] 
-                    })
-                });
-
-                let delBtn = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) 
-                    ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; padding:4px; font-size:10px; margin-top:5px;">Жою</button>` : "";
-
-                // POPUP ЖӨНДЕЛДІ: Компьютерден де, тел-дан да ақпарат көрініп тұрады
-                m.bindPopup(`
-                    <div style="text-align:center; min-width:180px;">
-                        <b style="color:${color}; font-size:14px;">${i.info}</b><br>
-                        <span style="font-weight:bold;">${i.title}</span><br>
-                        <div style="margin:10px 0; text-align:left;">${contactsHtml}</div>
-                        <a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:10px; border-radius:5px; text-decoration:none; margin-top:5px; font-weight:bold;">📞 Қоңырау шалу</a>
-                        ${delBtn}
-                    </div>
-                `);
-                markersGroup.addLayer(m);
-
-                // ТӨМЕНГІ ТІЗІМ ЖӨНДЕЛДІ: Мұнда да барлық байланыс деректері көрінеді
-                listHtml += `
-                    <div class="list-item">
-                        <div style="width:75%">
-                            <b style="color:${color}">${i.info}</b><br>
-                            <small><b>${i.title}</b></small>
-                            <div style="margin-top:5px;">${contactsHtml}</div>
-                        </div>
-                        <div style="width:25%; text-align:right;">
-                            ${i.phone ? `<a href="tel:${i.phone}" style="font-size:28px; text-decoration:none;">📞</a>` : ''}
-                        </div>
-                    </div>
-                `;
+    // Егер қосымша contacts (Email, Skype т.б.) болса, оларды да мәтінмен шығару
+    try {
+        const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : (item.contacts || []);
+        arr.forEach(c => {
+            // "Тел" деген жазуды қайталамау үшін тексеру
+            if (c.val && c.val !== item.phone) {
+                html += `<div class="contact-badge" style="font-size:13px; border-color:#007bff;">${c.type}: ${c.val}</div>`;
             }
         });
-        document.getElementById('item-count').innerText = count;
-        document.getElementById('dynamic-list-content').innerHTML = listHtml;
+    } catch(e) {
+        console.error("Байланыс дерегін оқу мүмкін болмады");
     }
+    
+    return html;
+}
+
+// 2. Маркерлерді картаға және тізімге шығару функциясын жаңарту
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    let listHtml = '';
+
+    rawData.forEach(i => {
+        if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
+            const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
+            
+            // Байланыс мәтіндерін (нөмір, email) дайындаймыз
+            const contactDisplay = formatContacts(i);
+
+            const m = L.marker([i.lat, i.lon], {
+                icon: L.divIcon({ 
+                    html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);"></div><div class="marker-label">${i.info.substring(0,12)}</div>`,
+                    className: '', iconSize: [60, 40], iconAnchor: [30, 7] 
+                })
+            });
+
+            // КАРТАДАҒЫ МАРКЕР: Басқанда тек керекті нөмірлер мен емаил шығады
+            m.bindPopup(`
+                <div style="text-align:center; min-width:160px; font-family:sans-serif;">
+                    <b style="color:${color}; font-size:15px; display:block; margin-bottom:5px;">${i.info}</b>
+                    <span style="color:#666;">${i.title}</span>
+                    <hr style="margin:8px 0; border:0; border-top:1px solid #eee;">
+                    <div style="margin-bottom:10px;">${contactDisplay}</div>
+                    ${i.phone ? `<a href="tel:${i.phone}" style="background:green; color:white; padding:8px; border-radius:5px; text-decoration:none; display:block; font-weight:bold;">📞 Қоңырау</a>` : ''}
+                </div>
+            `);
+            markersGroup.addLayer(m);
+
+            // ТӨМЕНГІ ТІЗІМ: Мұнда да нөмірлер мен емаил бірден көрініп тұрады
+            listHtml += `
+                <div class="list-item" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee; background:white;">
+                    <div style="flex-grow:1;">
+                        <b style="color:${color}; font-size:16px;">${i.info}</b><br>
+                        <small style="color:#888;">${i.title}</small>
+                        <div style="margin-top:8px;">${contactDisplay}</div>
+                    </div>
+                    <div style="margin-left:10px;">
+                        ${i.phone ? `<a href="tel:${i.phone}" style="font-size:24px; text-decoration:none;">📞</a>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    document.getElementById('dynamic-list-content').innerHTML = listHtml;
+}
 
     function saveItem(type, isVip) {
         let d = { is_vip: isVip, device_token: myToken };
