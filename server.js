@@ -13,7 +13,7 @@ const pool = new Pool({
 
 let onlineUsers = {}; 
 
-// ДЕРЕКТЕР БАЗАСЫН БАСТАУ
+// ДЕРЕКТЕР БАЗАСЫН ҚҰРУ
 async function initDB() {
     try {
         await pool.query(`
@@ -47,7 +47,7 @@ app.post('/user-ping', (req, res) => {
     res.json({ success: true });
 });
 
-// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ ЖӘНЕ СҮЗГІЛЕУ
+// GET-ALL: Картаға деректерді шығару
 app.get('/get-all', async (req, res) => {
     try {
         const w = await pool.query('SELECT * FROM workers');
@@ -55,41 +55,52 @@ app.get('/get-all', async (req, res) => {
         const o = await pool.query('SELECT * FROM orders');
 
         const now = Date.now();
+        // 45 секунд ішінде пинг жібергендер онлайн болып саналады
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // ЖАҢА ЛОГИКА:
-        // 1. Егер is_active === true болса (Админ VIP қосса) - КӨРІНЕДІ (оффлайн болса да).
-        // 2. Егер ТЕГІН болса (is_active === false) - ТЕК ОНЛАЙН болса ғана көрінеді.
-        // 3. Егер VIP батырмасын басса, бірақ Админ әлі растамаса - КӨРІНБЕЙДІ.
-        const filterFn = (i) => i.is_active || isOnline(i.device_token);
+        // СҮЗГІЛЕУ ЕРЕЖЕСІ:
+        // 1. Егер Админ is_active=true қылса -> КӨРІНЕДІ.
+        // 2. Егер is_active=false болса -> Тек device_token "ОНЛАЙН" тізімде болса ғана көрінеді.
+        // (VIP сұрағандардың токені өзгергендіктен, олар isOnline тексерісінен өтпей қалады -> Көрінбейді)
+        const filterFn = (i) => i.is_active === true || isOnline(i.device_token);
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
-            orders: o.rows.filter(filterFn), // Енді бұл жер жөнделді
-            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
+            orders: o.rows.filter(filterFn), // Тапсырыстар осында шығады
+            admin_all: { 
+                workers: w.rows, 
+                goods: g.rows, 
+                orders: o.rows 
+            }
         });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// САҚТАУ: Барлық жаңа жазбалар is_active = false болып сақталады
-app.post('/save-worker', async (req, res) => {
-    const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
-    
-    // Егер адам VIP батырмасын басса, оның device_token-ын өшіріп сақтаймыз
-    // Сонда ол Админ растағанша онлайн тізіміне де кірмей тұрады
-    const tokenToSave = is_vip ? "VIP_WAITING_" + device_token : device_token;
+// КӨМЕКШІ ФУНКЦИЯ: Токенді өңдеу
+// Егер is_vip келсе, токенді "бұзамыз", сөйтіп ол онлайн болып көрінбейді
+const processToken = (token, isVip) => {
+    return isVip ? `WAITING_VIP_${token}` : token;
+};
 
-    await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
-    [name, phone, job, lat, lon, tokenToSave]);
-    res.json({success: true});
+app.post('/save-worker', async (req, res) => {
+    try {
+        const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
+        const finalToken = processToken(device_token, is_vip);
+        
+        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
+        [name, phone, job, lat, lon, finalToken]);
+        res.json({success: true});
+    } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 app.post('/save-goods', async (req, res) => {
     try {
-        const { name, product, price, phone, lat, lon, device_token } = req.body;
+        const { name, product, price, phone, lat, lon, device_token, is_vip } = req.body;
+        const finalToken = processToken(device_token, is_vip);
+
         await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, false)', 
-        [name, product, price, phone, lat, lon, device_token]);
+        [name, product, price, phone, lat, lon, finalToken]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
@@ -97,14 +108,15 @@ app.post('/save-goods', async (req, res) => {
 app.post('/save-order', async (req, res) => {
     try {
         const { name, description, phone, lat, lon, device_token, is_vip } = req.body;
-        // Тексеріс: Егер VIP батырмасымен келсе, админ растағанша күтеді
+        const finalToken = processToken(device_token, is_vip);
+
         await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
-        [name, description, phone, lat, lon, device_token]);
+        [name, description, phone, lat, lon, finalToken]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// АДМИН ПАНЕЛЬ: Статусты өзгерту
+// АДМИН ЖӘНЕ ӨШІРУ
 app.post('/admin/toggle-active', async (req, res) => {
     try {
         const { id, type, active } = req.body; 
@@ -119,12 +131,15 @@ app.post('/delete-item', async (req, res) => {
         const { id, type, token } = req.body;
         const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
         let query, params;
+        
         if (token === 'admin777') {
             query = `DELETE FROM ${table} WHERE id = $1`;
             params = [parseInt(id)];
         } else {
-            query = `DELETE FROM ${table} WHERE id = $1 AND device_token = $2`;
-            params = [parseInt(id), token];
+            // Қарапайым қолданушы өшіруі үшін
+            // Біз "WAITING_VIP_" префиксін ескеруіміз керек немесе тікелей салыстыру
+            query = `DELETE FROM ${table} WHERE id = $1 AND (device_token = $2 OR device_token = $3)`;
+            params = [parseInt(id), token, `WAITING_VIP_${token}`];
         }
         await pool.query(query, params);
         res.json({success: true});
@@ -132,4 +147,4 @@ app.post('/delete-item', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды.`));
+app.listen(PORT, () => console.log(`Server started on ${PORT}`));
