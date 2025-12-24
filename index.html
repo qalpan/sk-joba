@@ -186,6 +186,7 @@
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
+    // КАРТА ИНИЦИАЛИЗАЦИЯСЫ
     const map = L.map('map').setView([43.2389, 76.8897], 13);
     const baseLayers = {
         color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
@@ -206,6 +207,18 @@
     let rawData = [];
     let adminDataFull = null;
 
+    // --- ОНЛАЙН СТАТУСТЫ САҚТАУ (МАҢЫЗДЫ ЖЕРІ) ---
+    function pingOnlineStatus() {
+        fetch(API + '/user-ping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: myToken })
+        }).catch(e => console.error("Ping error"));
+    }
+    setInterval(pingOnlineStatus, 30000); // Әр 30 секунд сайын сигнал
+    pingOnlineStatus(); // Бірінші рет бірден жіберу
+
+    // БАЙЛАНЫС ДЕРЕКТЕРІН ЖИНАУ ЖӘНЕ КӨРСЕТУ
     function addContactRow(containerId) {
         const div = document.createElement('div');
         div.className = 'contact-row';
@@ -228,185 +241,147 @@
         return JSON.stringify(contacts);
     }
 
-    // БҰЛ ФУНКЦИЯ ЖӨНДЕЛДІ: Нөмірлерді мәтін ретінде анық шығарады
-    function formatContacts(json) {
-        try {
-            const arr = JSON.parse(json || '[]');
-            if(arr.length === 0) return '';
-            // Әр байланысты жаңа жолдан және белгісімен көрсетеміз
-            return arr.map(c => `<div class="contact-badge"><span>${c.type}:</span> ${c.val}</div>`).join('');
-        } catch(e) { 
-            return `<div class="contact-badge">${json}</div>`; 
+    function formatContacts(item) {
+        let html = '';
+        if (item.phone) {
+            html += `<div class="contact-badge" style="font-size:14px; color:#d63384;">📞 ${item.phone}</div>`;
         }
+        try {
+            const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : (item.contacts || []);
+            arr.forEach(c => {
+                if (c.val && c.val !== item.phone) {
+                    const icon = c.type === 'Email' ? '📧' : (c.type === 'WhatsApp' ? '💬' : '🔹');
+                    html += `<div class="contact-badge" style="font-size:13px; border-color:#007bff;">${icon} ${c.type}: ${c.val}</div>`;
+                }
+            });
+        } catch(e) { console.error("Contact parse error"); }
+        return html;
     }
 
-function loadMarkers() {
-    fetch(API + '/get-all').then(r => r.json()).then(data => {
-        adminDataFull = data.admin_all;
-        const newData = [];
-        
-        // Серверден келетін деректерді дұрыс форматта жинау
-        if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
-        if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
-        if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
-        
-        rawData = newData;
-        filterMarkers(); // Осы жерде картаға маркерлер қойылады
-    });
-}
-
-// 1. Байланыс ақпаратын мәтін түрінде дайындау функциясы
-function formatContacts(item) {
-    let html = '';
-    
-    // Егер басты телефон нөмірі болса, оны бірден шығару
-    if (item.phone) {
-        html += `<div class="contact-badge" style="font-size:14px; color:#d63384;">${item.phone}</div>`;
+    // МАРКЕРЛЕРДІ ЖҮКТЕУ
+    function loadMarkers() {
+        fetch(API + '/get-all').then(r => r.json()).then(data => {
+            adminDataFull = data.admin_all;
+            const newData = [];
+            if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job || 'Жұмыс', title: x.name || 'Аты жоқ'}));
+            if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name || 'Тауар', title: x.seller_name || 'Сатушы'}));
+            if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description || 'Тапсырыс', title: x.client_name || 'Клиент'}));
+            rawData = newData;
+            filterMarkers();
+        }).catch(err => console.error("Load error:", err));
     }
 
-    // Егер қосымша contacts (Email, Skype т.б.) болса, оларды да мәтінмен шығару
-    try {
-        const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : (item.contacts || []);
-        arr.forEach(c => {
-            // "Тел" деген жазуды қайталамау үшін тексеру
-            if (c.val && c.val !== item.phone) {
-                html += `<div class="contact-badge" style="font-size:13px; border-color:#007bff;">${c.type}: ${c.val}</div>`;
+    // КАРТАҒА ЖӘНЕ ТІЗІМГЕ ШЫҒАРУ
+    function filterMarkers() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        markersGroup.clearLayers();
+        let listHtml = '';
+
+        rawData.forEach(i => {
+            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
+                const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
+                
+                // Байланыстарды дайындау
+                let contactsHtml = formatContacts(i);
+
+                // Өшіру батырмасы (иесіне ғана)
+                let deleteBtn = (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) 
+                    ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` 
+                    : '';
+
+                // Карта маркері
+                const m = L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ 
+                        html: `<div style="display:flex;flex-direction:column;align-items:center;">
+                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>
+                                <div class="marker-label">${i.info.substring(0,10)}</div>
+                               </div>`,
+                        className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
+                    })
+                });
+
+                m.bindPopup(`
+                    <div style="text-align:center; min-width:150px;">
+                        <b style="color:${color}; font-size:15px;">${i.info}</b><br>
+                        <small>${i.title}</small><hr style="margin:5px 0;">
+                        ${contactsHtml}
+                        ${deleteBtn}
+                    </div>
+                `);
+                markersGroup.addLayer(m);
+
+                // Төменгі тізім
+                listHtml += `<div class="list-item">
+                    <div>
+                        <b style="color:${color}">${i.info}</b><br>
+                        <small>${i.title}</small><br>
+                        ${deleteBtn}
+                    </div>
+                    <div style="text-align:right; max-width:50%;">${contactsHtml}</div>
+                </div>`;
             }
         });
-    } catch(e) {
-        console.error("Байланыс дерегін оқу мүмкін болмады");
+        document.getElementById('dynamic-list-content').innerHTML = listHtml;
+        document.getElementById('item-count').innerText = markersGroup.getLayers().length;
     }
-    
-    return html;
-}
 
-function filterMarkers() {
-    const term = document.getElementById('searchInput').value.toLowerCase();
-    markersGroup.clearLayers();
-    let listHtml = '';
+    // ДЕРЕКТІ САҚТАУ
+    function saveItem(type, isVip) {
+        let d = { is_vip: isVip, device_token: myToken };
+        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
+        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
 
-    rawData.forEach(i => {
-        if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-            const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
+        try {
+            const cArr = JSON.parse(d.contacts);
+            d.phone = cArr.find(c => c.type === 'Тел')?.val || '';
+        } catch(e) { d.phone = ''; }
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            d.lat = pos.coords.latitude; 
+            d.lon = pos.coords.longitude;
+            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
             
-            // БАЙЛАНЫСТАР: Барлық деректі (Тел, Email т.б.) жоғалтпай жинау
-            let contactsHtml = '';
-            try {
-                const arr = typeof i.contacts === 'string' ? JSON.parse(i.contacts || '[]') : (i.contacts || []);
-                if (arr.length === 0 && i.phone) arr.push({type: 'Тел', val: i.phone});
-                
-                arr.forEach(c => {
-                    const icon = c.type === 'Тел' ? '📞' : (c.type === 'Email' ? '📧' : '💬');
-                    contactsHtml += `<div class="compact-contact"><span>${icon}</span> <span>${c.val}</span></div>`;
-                });
-            } catch(e) { contactsHtml = `📞 ${i.phone}`; }
-
-            // ӨШІРУ БАСПАСЫ: Тек иесіне көрінеді
-            let deleteBtn = (i.device_token === myToken || i.device_token === `WAITING_VIP_${myToken}`) 
-                ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:3px 10px; border-radius:10px; font-size:10px; cursor:pointer;">🗑️ Өшіру</button>` 
-                : '';
-
-            // МАРКЕР ҚҰРУ
-            const m = L.marker([i.lat, i.lon], {
-                icon: L.divIcon({ 
-                    html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                            <div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>
-                            <div class="marker-label">${i.info.substring(0,10)}</div>
-                           </div>`,
-                    className: '', iconSize: [40, 40], iconAnchor: [20, 6] 
-                })
+            fetch(API + endpoint, { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify(d) 
+            }).then(r=>r.json()).then(res => {
+                alert(isVip ? "VIP өтінім жіберілді!" : "Сәтті жарияланды!");
+                loadMarkers(); 
             });
-
-            // КАРТАДАҒЫ МИНИ-АҚПАРАТ
-            m.bindPopup(`
-                <div style="text-align:center; min-width:140px;">
-                    <b style="color:${color}; font-size:15px; display:block;">${i.info}</b>
-                    <span style="display:block; color:gray; font-size:12px; margin-bottom:5px;">${i.title}</span>
-                    <div style="display:flex; flex-direction:column; gap:2px;">${contactsHtml}</div>
-                    <div style="margin-top:5px;">${deleteBtn}</div>
-                </div>
-            `);
-            markersGroup.addLayer(m);
-
-            // ТӨМЕНГІ ТІЗІМ
-            listHtml += `<div class="list-item">
-                <div>
-                    <b style="color:${color}">${i.info}</b><br>
-                    <small>${i.title}</small><br>
-                    ${deleteBtn}
-                </div>
-                <div style="text-align:right;">${contactsHtml}</div>
-            </div>`;
-        }
-    });
-    document.getElementById('dynamic-list-content').innerHTML = listHtml;
-    document.getElementById('item-count').innerText = markersGroup.getLayers().length;
-}
-
-function saveItem(type, isVip) {
-    let d = { is_vip: isVip, device_token: myToken };
-    
-    // Деректерді жинау
-    if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
-    if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
-    if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
-
-    // ТЕЛЕФОН НӨМІРІН АНЫҚТАУ
-    try {
-        const cArr = JSON.parse(d.contacts);
-        d.phone = cArr.find(c => c.type === 'Тел')?.val || '';
-    } catch(e) { d.phone = ''; }
-
-    navigator.geolocation.getCurrentPosition(pos => {
-        d.lat = pos.coords.latitude; 
-        d.lon = pos.coords.longitude;
-        
-        const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
-        
-        fetch(API + endpoint, { 
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify(d) 
-        })
-        .then(r=>r.json()).then(res => {
-            alert(isVip ? "VIP өтінім жіберілді!" : "Сәтті жарияланды! Картада онлайн болғанда көрінеді.");
-            loadMarkers(); 
+        }, () => {
+            alert("Геолокация қажет! Картаға шығу үшін GPS-ті қосыңыз.");
         });
-    }, () => {
-        alert("GPS рұқсат етілмеген! Картаға шығару үшін GPS қосыңыз.");
-    });
-}
+    }
 
-// Админ панельді рендеринг жасау
-function renderAdmin() {
-    document.getElementById('admin-modal').style.display = 'block';
-    if(!adminDataFull) return;
-    let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
-    ['workers', 'goods', 'orders'].forEach(cat => {
-        adminDataFull[cat].forEach(item => {
-            const date = new Date(item.created_at).toLocaleString('kk-KZ');
-            // formatContacts функциясы барлық деректі (тел, email т.б.) шығарады
-            const allContacts = formatContacts(item.contacts || JSON.stringify([{type:'Тел', val: item.phone}]));
-            
-            h += `<tr>
-                <td>${date}</td>
-                <td>${cat}</td>
-                <td><b>${item.job || item.product_name || item.description}</b><br><small>${item.name || item.seller_name || item.client_name}</small></td>
-                <td>${allContacts}</td> 
-                <td>
-                    <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
-                    <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
-                </td>
-            </tr>`;
+    // АДМИН ПАНЕЛЬ
+    function renderAdmin() {
+        document.getElementById('admin-modal').style.display = 'block';
+        if(!adminDataFull) return;
+        let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
+        ['workers', 'goods', 'orders'].forEach(cat => {
+            adminDataFull[cat].forEach(item => {
+                const date = new Date(item.created_at).toLocaleString('kk-KZ');
+                const contacts = formatContacts(item);
+                h += `<tr>
+                    <td>${date}</td>
+                    <td>${cat}</td>
+                    <td><b>${item.job || item.product_name || item.description}</b></td>
+                    <td>${contacts}</td>
+                    <td>
+                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
+                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
+                    </td>
+                </tr>`;
+            });
         });
-    });
-    document.getElementById('admin-content').innerHTML = h + "</table>";
-}
+        document.getElementById('admin-content').innerHTML = h + "</table>";
+    }
 
-    // Қалған функциялар сіздің кодыңызбен бірдей
     function initVIP(type) { 
         const phone = "8 707 123 45 67"; 
-        if(confirm(`💎 VIP ЖАРИЯЛАУ (490₸)\n\nТөлем нөмірі (Kaspi/Halyk):\n📍 ${phone}\n\nТөлеп болсаңыз 'OK' басыңыз.`)) saveItem(type, true); 
+        if(confirm(`💎 VIP ЖАРИЯЛАУ (490₸)\n\n📍 Төлем: ${phone}\n\nТөлеп болсаңыз 'OK' басыңыз.`)) saveItem(type, true); 
     }
 
     function deleteItem(id, type) {
@@ -429,8 +404,10 @@ function renderAdmin() {
     };
 
     function v(id){ return document.getElementById(id).value; }
+    
+    // БАСҚАРУШЫ ТАЙМЕРЛЕР
     loadMarkers();
-    setInterval(loadMarkers, 15000);
+    setInterval(loadMarkers, 15000); // 15 сек сайын картаны жаңарту
 </script>
 </body>
 </html>
