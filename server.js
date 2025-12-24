@@ -13,6 +13,7 @@ const pool = new Pool({
 
 let onlineUsers = {}; 
 
+// ДЕРЕКТЕР БАЗАСЫН БАСТАУ
 async function initDB() {
     try {
         await pool.query(`
@@ -31,7 +32,7 @@ async function initDB() {
             CREATE TABLE IF NOT EXISTS orders (
                 id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, 
                 phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-                is_active BOOLEAN DEFAULT TRUE, device_token TEXT, 
+                is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -46,7 +47,7 @@ app.post('/user-ping', (req, res) => {
     res.json({ success: true });
 });
 
-// КАРТАҒА ШЫҒАРУ ЛОГИКАСЫ (get-all)
+// БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ ЖӘНЕ СҮЗГІЛЕУ
 app.get('/get-all', async (req, res) => {
     try {
         const w = await pool.query('SELECT * FROM workers');
@@ -56,39 +57,38 @@ app.get('/get-all', async (req, res) => {
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // КАРТАДА КІМДЕР КӨРІНЕДІ:
-        // 1. Немесе ол VIP (is_active = true және сіз қолмен растағансыз)
-        // 2. Немесе ол тегін жариялап, қазір ОНЛАЙН отыр
-        const filteredWorkers = w.rows.filter(i => i.is_active || isOnline(i.device_token));
-        const filteredGoods = g.rows.filter(i => i.is_active || isOnline(i.device_token));
+        // КАРТАДА КӨРІНУ ЕРЕЖЕСІ: 
+        // Тек VIP (is_active = true) немесе ТЕГІН + ОНЛАЙН болса ғана көрінеді
+        const filterFn = (item) => item.is_active || isOnline(item.device_token);
 
         res.json({ 
-            workers: filteredWorkers, 
-            goods: filteredGoods, 
-            orders: o.rows,
-            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
+            workers: w.rows.filter(filterFn), 
+            goods: g.rows.filter(filterFn), 
+            orders: o.rows.filter(filterFn), // Тапсырыстар енді картада шығады
+            admin_all: { 
+                workers: w.rows, 
+                goods: g.rows, 
+                orders: o.rows 
+            }
         });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// САҚТАУ МАРШРУТТАРЫ
-// Жұмысшыны сақтау
+// САҚТАУ: Барлық жаңа жазбалар is_active = false болып сақталады
 app.post('/save-worker', async (req, res) => {
     try {
         const { name, phone, job, lat, lon, device_token } = req.body;
-        // Тегін жарияланым бірден шығу үшін is_active = true қыламыз
-        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, $7)', 
-        [name, phone, job, lat, lon, device_token, true]);
+        await pool.query('INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
+        [name, phone, job, lat, lon, device_token]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// Тауарды сақтау
 app.post('/save-goods', async (req, res) => {
     try {
         const { name, product, price, phone, lat, lon, device_token } = req.body;
-        await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, $8)', 
-        [name, product, price, phone, lat, lon, device_token, true]);
+        await pool.query('INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, false)', 
+        [name, product, price, phone, lat, lon, device_token]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
@@ -96,17 +96,14 @@ app.post('/save-goods', async (req, res) => {
 app.post('/save-order', async (req, res) => {
     try {
         const { name, description, phone, lat, lon, device_token, is_vip } = req.body;
-        // Тегін болса бірден шығады (true), VIP болса сіз растағанша күтеді (false)
-        const activeStatus = is_vip ? false : true; 
-
-        await pool.query(
-            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7)', 
-            [name, description, phone, lat, lon, device_token, activeStatus]
-        );
+        // Тексеріс: Егер VIP батырмасымен келсе, админ растағанша күтеді
+        await pool.query('INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
+        [name, description, phone, lat, lon, device_token]);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
+// АДМИН ПАНЕЛЬ: Статусты өзгерту
 app.post('/admin/toggle-active', async (req, res) => {
     try {
         const { id, type, active } = req.body; 
