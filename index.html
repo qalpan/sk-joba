@@ -10,13 +10,10 @@
     <style>
         :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; --danger: #dc3545; }
         body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
-        .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding-top: 10px;}
+        .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding-top: 10px; background: rgba(244,247,246,0.9); }
         .search-input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; }
-        .style-switcher { display: flex; justify-content: center; gap: 10px; margin: 5px 0; }
-        .style-btn { padding: 5px 10px; border-radius: 15px; border: 1px solid #ddd; background: #eee; cursor: pointer; }
-        .style-btn.active { background: var(--primary); color: white; }
-        #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
-        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 30vh; overflow-y: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #map { height: 50vh; width: 100%; border-bottom: 3px solid var(--primary); z-index: 1; }
+        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .list-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; display: grid; gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 10px; border-top: 5px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -30,11 +27,8 @@
 <body>
 
 <div class="header-box">
-    <input type="text" id="searchInput" class="search-input" placeholder="Іздеу..." oninput="filterMarkers()">
-    <div class="style-switcher">
-        <button id="btn-color" class="style-btn active" onclick="changeMapStyle('color')">Түсті</button>
-        <button id="btn-mono" class="style-btn" onclick="changeMapStyle('mono')">Ақ-қара</button>
-    </div>
+    <input type="text" id="searchInput" class="search-input" placeholder="Іздеу (Мамандық, тауар)..." oninput="filterMarkers()">
+    <div style="margin-top:5px; font-size:12px; color:gray;">Егер картада көрінбесеңіз, сайтты жаңартыңыз (refresh).</div>
 </div>
 
 <div id="map"></div>
@@ -48,7 +42,7 @@
     <div class="card" style="border-color: var(--primary);">
         <h4>👷 Қызмет жариялау</h4>
         <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
+        <input id="w_job" placeholder="Мамандық (Сантехник)">
         <input id="w_phone" placeholder="Телефон">
         <button onclick="saveItem('worker', false)" style="background:var(--primary)">Тегін жариялау</button>
         <button onclick="initVIP('worker')" style="background:#0056b3">💎 VIP жариялау</button>
@@ -57,7 +51,7 @@
     <div class="card" style="border-color: var(--warning);">
         <h4>📦 Тауар сату</h4>
         <input id="g_name" placeholder="Сатушы аты">
-        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_prod" placeholder="Тауар аты (Сүт, Ет)">
         <input id="g_price" placeholder="Бағасы">
         <input id="g_phone" placeholder="Телефон">
         <button onclick="saveItem('good', false)" style="background:var(--warning)">Тегін жариялау</button>
@@ -67,7 +61,7 @@
     <div class="card" style="border-color: var(--success);">
         <h4>📋 Тапсырыс беру</h4>
         <input id="c_name" placeholder="Атыңыз">
-        <textarea id="c_desc" placeholder="Не керек?"></textarea>
+        <textarea id="c_desc" placeholder="Не керек? (Толық жазыңыз)"></textarea>
         <input id="c_phone" placeholder="Телефон">
         <button onclick="saveItem('order', false)" style="background:var(--success)">Тегін жариялау</button>
         <button onclick="initVIP('order')" style="background:#1e7e34">💎 VIP тапсырыс</button>
@@ -89,53 +83,44 @@
     localStorage.setItem('token', myToken);
 
     const map = L.map('map').setView([43.2389, 76.8897], 13);
-    const layers = {
-        color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        mono: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
-    };
-    layers.color.addTo(map);
-    const markersGroup = L.markerClusterGroup();
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // ҚАБАТТАСУДЫ ШЕШУ (SPIDERFY)
+    const markersGroup = L.markerClusterGroup({
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 50 
+    });
     map.addLayer(markersGroup);
 
     let rawData = [];
     let adminData = null;
 
-    function changeMapStyle(s) {
-        map.removeLayer(layers.color); map.removeLayer(layers.mono);
-        layers[s].addTo(map);
-        document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));
-        document.getElementById('btn-'+s).classList.add('active');
-    }
-
     // Ping
     setInterval(() => {
         fetch(API + '/user-ping', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:myToken})});
-    }, 30000);
+    }, 20000); // Әр 20 секунд сайын
 
-    // Main Load Function
     function loadMarkers() {
         fetch(API + '/get-all')
             .then(r => r.json())
             .then(data => {
                 adminData = data.admin_all;
                 
-                // DATA MAPPING
                 const newData = [];
                 if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
                 if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
-                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name})); // ТАПСЫРЫСТАРДЫ ҚОСУ
+                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
 
-                // Сұрыптау: VIP бірінші тұрсын
-                newData.sort((a,b) => (b.is_active === a.is_active) ? 0 : b.is_active ? 1 : -1);
-
+                // Деректерді жаңарту
                 if(JSON.stringify(rawData) !== JSON.stringify(newData)) {
                     rawData = newData;
                     filterMarkers();
                 }
-                
                 if(document.getElementById('admin-modal').style.display === 'block') renderAdmin();
             })
-            .catch(e => console.error(e));
+            .catch(e => console.error("Load Error:", e));
     }
 
     function filterMarkers() {
@@ -147,28 +132,31 @@
         rawData.forEach(i => {
             if((i.info && i.info.toLowerCase().includes(term)) || (i.title && i.title.toLowerCase().includes(term))) {
                 count++;
-                // Marker color
                 const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
                 const isVIP = i.is_active;
 
                 const m = L.marker([i.lat, i.lon], {
-                    icon: L.divIcon({ html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>` })
+                    icon: L.divIcon({ html: `<div style="background:${color};width:15px;height:15px;border-radius:50%;border:2px solid white; box-shadow:0 0 5px black;"></div>` })
                 });
                 
-                // Popup
                 let delBtn = "";
-                // VIP (WAITING) болса да өшіре алу үшін
                 if (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) {
-                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; color:white; border:none; border-radius:4px; margin-top:5px; cursor:pointer;">Өшіру</button>`;
+                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; color:white; padding:5px; margin-top:5px; font-size:10px;">Жою</button>`;
                 }
 
-                m.bindPopup(`<b>${isVIP?'⭐ VIP ':''}${i.type.toUpperCase()}</b><br>${i.info}<br>${i.title || ''}<br><a href="tel:${i.phone}">📞 Call</a><br>${delBtn}`);
+                m.bindPopup(`
+                    <div style="text-align:center;">
+                        <b style="color:${color}">${isVIP?'⭐ VIP<br>':''}${i.type.toUpperCase()}</b><br>
+                        <b>${i.info}</b><br>
+                        ${i.title || ''}<br>
+                        <a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:5px; border-radius:5px; text-decoration:none; margin-top:5px;">📞 Қоңырау</a>
+                        ${delBtn}
+                    </div>
+                `);
                 markersGroup.addLayer(m);
 
-                // List Item
-                const vipStyle = isVIP ? 'border:2px solid green; background:#f0fff4;' : '';
                 listHtml += `
-                    <div class="list-item" style="${vipStyle}">
+                    <div class="list-item">
                         <div>
                             <b style="color:${color}">${isVIP?'⭐ ':''}${i.info}</b>
                             <span style="font-size:12px; display:block;">${i.title || 'User'}</span>
@@ -185,11 +173,13 @@
 
     function saveItem(type, isVip) {
         let d = { is_vip: isVip };
+        // ДЕРЕКТЕРДІ ДҰРЫС ЖИНАУ
         if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.phone=v('w_phone'); }
         if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.phone=v('g_phone'); }
-        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.phone=v('c_phone'); }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.phone=v('c_phone'); } // Осы жер дұрыс
 
         if(!d.phone) return alert("Телефон нөмірін жазыңыз!");
+        if(type === 'order' && !d.description) return alert("Сипаттама жазыңыз!");
 
         navigator.geolocation.getCurrentPosition(pos => {
             d.lat = pos.coords.latitude;
@@ -204,19 +194,18 @@
                 body: JSON.stringify(d)
             }).then(r=>r.json()).then(res => {
                 if(res.success) {
-                    alert(isVip ? "VIP өтінім қабылданды! Төлем расталған соң шығады." : "Сәтті жарияланды (Тегін режим).");
+                    alert(isVip ? "VIP өтінім қабылданды! Төлем расталған соң шығады." : "Сәтті жарияланды! Картадан көрінбесеңіз, 1 минут күтіңіз немесе сайтты жаңартыңыз.");
                     loadMarkers();
                 } else {
-                    alert("Қате!");
+                    alert("Сервер қатесі: " + (res.error || "Белгісіз"));
                 }
-            });
-        }, () => alert("Геолокация қосыңыз!"));
+            }).catch(err => alert("Байланыс қатесі: " + err));
+        }, () => alert("GPS қосыңыз!"));
     }
 
     function initVIP(type) {
         if(confirm("VIP СТАТУС (490₸).\nТөлесеңіз OK басыңыз.")) {
-            saveItem(type, true); // True = VIP
-            // Пошта ашу
+            saveItem(type, true);
             window.location.href = `mailto:sk-joba@outlook.com?subject=VIP Request&body=I paid for ${type}`;
         }
     }
@@ -230,7 +219,6 @@
         }).then(() => { loadMarkers(); alert("Өшірілді"); });
     }
 
-    // Admin
     function renderAdmin() {
         if(!adminData) return;
         let h = `<table border="1"><tr><th>Type</th><th>Info</th><th>Status</th><th>Action</th></tr>`;
@@ -269,7 +257,7 @@
     
     function v(id){ return document.getElementById(id).value; }
     
-    // Auto Refresh
+    // Алғашқы жүктеу
     loadMarkers();
     setInterval(loadMarkers, 10000); 
 
