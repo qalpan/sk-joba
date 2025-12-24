@@ -293,49 +293,61 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     pingOnlineStatus();
 
     // 5. КАРТАҒА ШЫҒАРУ ЖӘНЕ ӨШІРУ БАТЫРМАСЫ
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        let listHtml = '';
-        const now = Date.now();
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    let listHtml = '';
+    const now = Date.now();
 
-        rawData.forEach(i => {
-            const created = new Date(i.created_at).getTime();
-            if (now - created > 86400000) return; // 24 сағаттан ескіні көрсетпеу
+    rawData.forEach(i => {
+        const created = new Date(i.created_at).getTime();
+        if (now - created > 86400000) return; // 24 сағаттан ескіні көрсетпеу
 
-            const isOnline = i.last_ping && (now - new Date(i.last_ping).getTime() < 70000);
-            const isOwner = i.device_token === myToken;
+        const isOnline = i.last_ping && (now - new Date(i.last_ping).getTime() < 70000);
+        const isOwner = i.device_token === myToken;
 
-            // ШАРТ: VIP немесе Онлайн (Егер иесі болса, әрқашан көреді)
-            if (i.is_active == 1 || isOnline || isOwner) {
-                if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                    const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                    
-                    // ХАБАРЛАМА БЕРУШІГЕ ҒАНА КӨРІНЕТІН ӨШІРУ БАТЫРМАСЫ
-                    let deleteBtn = isOwner ? `<br><button onclick="deleteItem(${i.id}, '${i.type}')" style="background:red; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; margin-top:5px;">🗑️ Өшіру</button>` : '';
+        // КӨРСЕТУ ШАРТЫ: VIP немесе Онлайн (Иесіне әрқашан көрінеді)
+        if (i.is_active == 1 || isOnline || isOwner) {
+            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
+                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+                
+                // --- ӨШІРУ БАТЫРМАСЫ (ТЕК ИЕСІНЕ) ---
+                const deleteBtnHtml = isOwner 
+                    ? `<button onclick="deleteItem(${i.id}, '${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px; margin-top:5px;">🗑️ Өшіру</button>` 
+                    : '';
 
-                    const m = L.marker([i.lat, i.lon], {
-                        icon: L.divIcon({ 
-                            html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                    <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 8px gold;':''}"></div>
-                                    <div class="marker-label">${i.info.substring(0,10)}</div>
-                                   </div>`,
-                            className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
-                        })
-                    });
+                // Картадағы маркер
+                const m = L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ 
+                        html: `<div style="display:flex;flex-direction:column;align-items:center;">
+                                <div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 10px gold; border:2px solid gold;':''}"></div>
+                                <div class="marker-label">${i.info.substring(0,10)}</div>
+                               </div>`,
+                        className: '', iconSize: [40, 40], iconAnchor: [20, 7] 
+                    })
+                });
 
-                    m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br>${formatContacts(i)}${deleteBtn}</div>`);
-                    markersGroup.addLayer(m);
+                m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br>${formatContacts(i)}${deleteBtnHtml}</div>`);
+                markersGroup.addLayer(m);
 
-                    listHtml += `<div class="list-item" style="${i.is_active==1?'border-left:5px solid gold;':''}">
-                        <div><b>${i.info}</b><br><small>${i.title}</small></div>
-                        <div style="text-align:right;">${formatContacts(i)}</div>
-                    </div>`;
-                }
+                // --- "ЖАҚЫН МАҢДА" ТІЗІМІНДЕГІ ӨШІРУ БАТЫРМАСЫ ---
+                listHtml += `
+                <div class="list-item" style="${i.is_active==1?'border-left:5px solid gold; background:#fffdf0;':''}">
+                    <div style="flex-grow:1;">
+                        <b>${i.info} ${i.is_active==1?'👑':''}</b><br>
+                        <small>${i.title}</small><br>
+                        ${deleteBtnHtml} 
+                    </div>
+                    <div style="text-align:right; min-width:120px;">
+                        ${formatContacts(i)}
+                    </div>
+                </div>`;
             }
-        });
-        document.getElementById('dynamic-list-content').innerHTML = listHtml;
-    }
+        }
+    });
+    document.getElementById('dynamic-list-content').innerHTML = listHtml;
+    document.getElementById('item-count').innerText = markersGroup.getLayers().length;
+}
 
     // 6. САҚТАУ
     function saveItem(type, isVip) {
