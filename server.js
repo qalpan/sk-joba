@@ -48,7 +48,6 @@ app.post('/user-ping', (req, res) => {
 });
 
 // БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ ЖӘНЕ СҮЗГІЛЕУ
-// server.js ішіндегі get-all бөлімін осылай ауыстырып көріңіз:
 app.get('/get-all', async (req, res) => {
     try {
         const w = await pool.query('SELECT * FROM workers');
@@ -58,16 +57,16 @@ app.get('/get-all', async (req, res) => {
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // ЛОГИКА: 
-        // 1. Егер i.is_active болса (Админ VIP қылса) - КӨРІНЕДІ.
-        // 2. Егер онлайн болса - КӨРІНЕДІ.
-        // Егер сізге ТЕК Админ растағандар ғана керек болса, isOnline-ды алып тастау керек.
-        const filterFn = (i) => i.is_active === true || isOnline(i.device_token);
+        // ЖАҢА ЛОГИКА:
+        // 1. Егер is_active === true болса (Админ VIP қосса) - КӨРІНЕДІ (оффлайн болса да).
+        // 2. Егер ТЕГІН болса (is_active === false) - ТЕК ОНЛАЙН болса ғана көрінеді.
+        // 3. Егер VIP батырмасын басса, бірақ Админ әлі растамаса - КӨРІНБЕЙДІ.
+        const filterFn = (i) => i.is_active || isOnline(i.device_token);
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
-            orders: o.rows.filter(filterFn), 
+            orders: o.rows.filter(filterFn), // Енді бұл жер жөнделді
             admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
         });
     } catch (err) { res.status(500).json({error: err.message}); }
