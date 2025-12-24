@@ -3,175 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba Multi-Contact Map</title>
+    <title>SK-Joba Map</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
-        :root { --primary: #007bff; --success: #28a745; }
+        :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; }
         body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
-        #map { height: 40vh; width: 100%; border-bottom: 3px solid var(--primary); }
-        .contact-row { display: flex; gap: 5px; margin-top: 5px; }
-        .contact-row select { width: 30%; }
-        .contact-badge { 
-            display: inline-block; 
-            background: #e9ecef; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 11px; 
-            margin: 2px; 
-            border: 1px solid #ccc;
+        .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .search-input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; font-size: 16px; }
+        
+        .style-switcher { display: flex; justify-content: center; gap: 10px; margin-top: 8px; }
+        .style-btn { padding: 6px 14px; border-radius: 15px; border: 1px solid #ddd; background: #eee; cursor: pointer; font-size: 12px; }
+        .style-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
+        
+        .marker-label {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #666;
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #333;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         }
-        .admin-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 5px; }
-        .add-btn { background: #6c757d; color: white; width: auto; padding: 5px 10px; cursor: pointer; border-radius: 5px; margin-top: 5px; display: inline-block; }
+
+        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; }
+        .list-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        /* БАЙЛАНЫС БЕЛГІЛЕРІНІҢ СТИЛІ */
+        .contact-badge {
+            display: inline-block;
+            background: #f1f3f5;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            margin: 2px 2px 0 0;
+            color: #495057;
+        }
+
+        .container { padding: 15px; display: grid; gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 10px; border-top: 5px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, textarea, button, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { color: white; border: none; font-weight: bold; cursor: pointer; }
+        
+        .contact-row { display: flex; gap: 5px; margin-top: 5px; }
+        .add-contact-btn { background: #6c757d; font-size: 12px; padding: 5px; width: auto; margin-top: 5px; }
+
+        #admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:15px; overflow-y:auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-
-<div id="visible-list-container">
-    <div style="padding:10px; font-weight:bold; background:#eee;">📍 Жақын маңда: (<span id="item-count">0</span>)</div>
-    <div id="dynamic-list-content"></div>
-</div>
-
-<div class="container" style="padding: 15px;">
-    <div class="card" id="form-worker" style="background: white; padding: 15px; border-radius: 10px; border-top: 5px solid var(--primary); margin-bottom: 15px;">
-        <h4>👷 Қызмет жариялау</h4>
-        <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
-        
-        <div id="w_contacts_wrapper">
-            <div class="contact-row">
-                <select class="contact-type"><option value="Тел">Тел</option><option value="Email">Email</option><option value="Skype">Skype</option><option value="WA">WhatsApp</option></select>
-                <input class="contact-val" placeholder="Байланыс дерегі">
-            </div>
-        </div>
-        <div class="add-btn" onclick="addContactField('w_contacts_wrapper')">+ Байланыс қосу</div>
-        
-        <button onclick="saveWithContacts('worker')" style="background:var(--primary); color:white; width:100%; margin-top:10px; padding:10px; border:none; font-weight:bold;">Жариялау</button>
+<div class="header-box">
+    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Іздеу..." oninput="filterMarkers()">
+    <div class="style-switcher">
+        <button id="btn-color" class="style-btn active" onclick="changeMapStyle('color')">Түсті</button>
+        <button id="btn-mono" class="style-btn" onclick="changeMapStyle('mono')">Ақ-қара</button>
     </div>
 </div>
 
-<div id="admin-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto;">
-    <button onclick="location.hash=''" style="background:red; color:white; float:right;">Жабу</button>
-    <h3>Админ Басқару</h3>
+<div id="map"></div>
+
+<div id="visible-list-container">
+    <div style="padding:10px; font-weight:bold; background:#eee; position: sticky; top:0;">📍 Жақын маңда: (<span id="item-count">0</span>)</div>
+    <div id="dynamic-list-content"></div>
+</div>
+
+<div class="container">
+    <div class="card" style="border-color: var(--primary);">
+        <h4>👷 Қызмет жариялау</h4>
+        <input id="w_name" placeholder="Атыңыз">
+        <input id="w_job" placeholder="Мамандық">
+        <div id="w_contacts_list">
+            <div class="contact-row">
+                <select style="width:35%" class="c-type"><option>Тел</option><option>Email</option><option>Skype</option><option>WhatsApp</option></select>
+                <input style="width:65%" class="c-val" placeholder="Дерек (мысалы: 8707...)">
+            </div>
+        </div>
+        <button type="button" class="add-contact-btn" onclick="addContactRow('w_contacts_list')">+ Байланыс қосу</button>
+        <button onclick="saveItem('worker', false)" style="background:var(--primary); margin-top:15px;">Тегін жариялау</button>
+        <button onclick="initVIP('worker')" style="background:#0056b3">💎 VIP жариялау</button>
+    </div>
+
+    <div class="card" style="border-color: var(--warning);">
+        <h4>📦 Тауар сату</h4>
+        <input id="g_name" placeholder="Сатушы аты">
+        <input id="g_prod" placeholder="Тауар аты">
+        <input id="g_price" placeholder="Бағасы">
+        <div id="g_contacts_list">
+            <div class="contact-row">
+                <select style="width:35%" class="c-type"><option>Тел</option><option>Email</option><option>Skype</option><option>WhatsApp</option></select>
+                <input style="width:65%" class="c-val" placeholder="Дерек">
+            </div>
+        </div>
+        <button type="button" class="add-contact-btn" onclick="addContactRow('g_contacts_list')">+ Байланыс қосу</button>
+        <button onclick="saveItem('good', false)" style="background:var(--warning); margin-top:15px;">Тегін жариялау</button>
+        <button onclick="initVIP('good')" style="background:#d39e00">💎 VIP жариялау</button>
+    </div>
+
+    <div class="card" style="border-color: var(--success);">
+        <h4>📋 Тапсырыс беру</h4>
+        <input id="c_name" placeholder="Атыңыз">
+        <textarea id="c_desc" placeholder="Не керек?"></textarea>
+        <div id="o_contacts_list">
+            <div class="contact-row">
+                <select style="width:35%" class="c-type"><option>Тел</option><option>Email</option><option>Skype</option><option>WhatsApp</option></select>
+                <input style="width:65%" class="c-val" placeholder="Дерек">
+            </div>
+        </div>
+        <button type="button" class="add-contact-btn" onclick="addContactRow('o_contacts_list')">+ Байланыс қосу</button>
+        <button onclick="saveItem('order', false)" style="background:var(--success); margin-top:15px;">Тегін жариялау</button>
+        <button onclick="initVIP('order')" style="background:#1e7e34">💎 VIP тапсырыс</button>
+    </div>
+</div>
+
+<div id="admin-modal">
+    <div style="display:flex; justify-content: space-between; align-items: center;">
+        <h3>Админ Панель</h3>
+        <button onclick="location.hash=''" style="background:red; width: auto; padding: 5px 15px;">Жабу</button>
+    </div>
     <div id="admin-content"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
 <script>
-    const API = "https://sk-joba.onrender.com";
+    const API = "https://sk-joba.onrender.com"; 
     const myToken = localStorage.getItem('token') || Math.random().toString(36).substr(2);
     localStorage.setItem('token', myToken);
 
-    // Байланыс өрісін қосу
-    function addContactField(wrapperId) {
+    const map = L.map('map').setView([43.2389, 76.8897], 13);
+    const baseLayers = {
+        color: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        mono: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
+    };
+    baseLayers.color.addTo(map);
+
+    function changeMapStyle(s) {
+        map.removeLayer(baseLayers.color); map.removeLayer(baseLayers.mono);
+        baseLayers[s].addTo(map);
+        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + s).classList.add('active');
+    }
+
+    const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, maxClusterRadius: 30 });
+    map.addLayer(markersGroup);
+
+    let rawData = [];
+    let adminDataFull = null;
+
+    // Жаңа байланыс жолын қосу
+    function addContactRow(containerId) {
         const div = document.createElement('div');
         div.className = 'contact-row';
         div.innerHTML = `
-            <select class="contact-type"><option value="Тел">Тел</option><option value="Email">Email</option><option value="Skype">Skype</option><option value="WA">WhatsApp</option></select>
-            <input class="contact-val" placeholder="Байланыс дерегі">
-            <button onclick="this.parentElement.remove()" style="width:auto; background:none; color:red; border:none;">X</button>
+            <select style="width:35%" class="c-type"><option>Тел</option><option>Email</option><option>Skype</option><option>WhatsApp</option></select>
+            <input style="width:60%" class="c-val" placeholder="Дерек">
+            <button onclick="this.parentElement.remove()" style="width:5%; background:none; color:red; padding:0;">✕</button>
         `;
-        document.getElementById(wrapperId).appendChild(div);
+        document.getElementById(containerId).appendChild(div);
     }
 
-    // Деректерді жинау (Contacts JSON форматында)
-    function getContacts(wrapperId) {
-        const rows = document.getElementById(wrapperId).querySelectorAll('.contact-row');
-        let arr = [];
-        rows.forEach(row => {
-            const type = row.querySelector('.contact-type').value;
-            const val = row.querySelector('.contact-val').value;
-            if(val) arr.push({type, val});
+    // Байланыстарды жинау
+    function collectContacts(containerId) {
+        let contacts = [];
+        const rows = document.getElementById(containerId).querySelectorAll('.contact-row');
+        rows.forEach(r => {
+            const type = r.querySelector('.c-type').value;
+            const val = r.querySelector('.c-val').value;
+            if(val) contacts.push({type, val});
         });
-        return arr;
+        return JSON.stringify(contacts);
     }
 
-    function saveWithContacts(type) {
-        let contacts = getContacts('w_contacts_wrapper');
-        let d = {
-            name: document.getElementById('w_name').value,
-            job: document.getElementById('w_job').value,
-            phone: contacts[0] ? contacts[0].val : '', // Бірінші нөмір негізгі ретінде
-            contacts: JSON.stringify(contacts),
-            device_token: myToken
-        };
-
-        navigator.geolocation.getCurrentPosition(pos => {
-            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
-            fetch(`${API}/save-worker`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(d)
-            }).then(() => { alert("Сәтті сақталды!"); location.reload(); });
-        });
+    // Байланыстарды көрсету (HTML)
+    function formatContacts(json) {
+        try {
+            const arr = JSON.parse(json || '[]');
+            if(arr.length === 0) return '';
+            return arr.map(c => `<span class="contact-badge"><b>${c.type}:</b> ${c.val}</span>`).join('');
+        } catch(e) { return json; }
     }
 
-    // Ақпаратты көрсету функциясы
-    function renderContactsHtml(contacts) {
-        if(!contacts) return '';
-        const arr = typeof contacts === 'string' ? JSON.parse(contacts) : contacts;
-        return arr.map(c => `<span class="contact-badge"><b>${c.type}:</b> ${c.val}</span>`).join('');
-    }
-
-    // Маркерлерді жүктеу
     function loadMarkers() {
         fetch(API + '/get-all').then(r => r.json()).then(data => {
-            const allItems = [...data.workers, ...data.goods, ...data.orders];
-            document.getElementById('item-count').innerText = allItems.length;
+            adminDataFull = data.admin_all;
+            const newData = [];
+            if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
+            if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
+            if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
             
-            let listHtml = '';
-            allItems.forEach(i => {
-                const contactsHtml = renderContactsHtml(i.contacts);
-                
-                // Тізімдегі көрініс
+            rawData = newData;
+            filterMarkers();
+            if(location.hash === '#admin777') renderAdmin();
+        });
+    }
+
+    function filterMarkers() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        markersGroup.clearLayers();
+        let listHtml = '';
+        let count = 0;
+
+        rawData.forEach(i => {
+            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
+                count++;
+                const color = i.type==='worker'?'#007bff':(i.type==='good'?'#ffc107':'#28a745');
+                const contactsHtml = formatContacts(i.contacts);
+
+                const m = L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ 
+                        html: `<div style="display:flex;flex-direction:column;align-items:center;"><div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);"></div><div class="marker-label">${i.info.substring(0,12)}</div></div>`,
+                        className: '', iconSize: [60, 40], iconAnchor: [30, 7] 
+                    })
+                });
+
+                let delBtn = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken) 
+                    ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:red; padding:4px; font-size:10px; margin-top:5px;">Жою</button>` : "";
+
+                m.bindPopup(`
+                    <div style="text-align:center; min-width:150px;">
+                        <b style="color:${color}">${i.info}</b><br><span>${i.title}</span><br>
+                        <div style="margin:8px 0;">${contactsHtml}</div>
+                        ${i.phone ? `<a href="tel:${i.phone}" style="display:block; background:green; color:white; padding:8px; border-radius:5px; text-decoration:none; margin-top:5px;">📞 Қоңырау шалу</a>` : ''}
+                        ${delBtn}
+                    </div>
+                `);
+                markersGroup.addLayer(m);
+
                 listHtml += `
-                    <div class="list-item" style="border-bottom:1px solid #ddd; padding:10px;">
-                        <div>
-                            <b>${i.job || i.product_name || i.description}</b><br>
-                            <small>${i.name || i.seller_name || i.client_name}</small><br>
+                    <div class="list-item">
+                        <div style="width:80%">
+                            <b style="color:${color}">${i.info}</b><br><small>${i.title}</small>
                             <div style="margin-top:5px;">${contactsHtml}</div>
+                        </div>
+                        <div style="width:20%; text-align:right;">
+                            ${i.phone ? `<a href="tel:${i.phone}" style="font-size:24px; text-decoration:none;">📞</a>` : ''}
                         </div>
                     </div>
                 `;
-
-                // Картадағы маркер (қысқаша)
-                const m = L.marker([i.lat, i.lon]).addTo(map);
-                m.bindPopup(`
-                    <div style="text-align:center;">
-                        <b>${i.job || i.product_name}</b><br>
-                        ${contactsHtml}<br>
-                        <a href="tel:${i.phone}" style="display:inline-block; margin-top:5px; background:green; color:white; padding:5px; border-radius:5px; text-decoration:none;">📞 Қоңырау</a>
-                    </div>
-                `);
-            });
-            document.getElementById('dynamic-list-content').innerHTML = listHtml;
-            
-            if(location.hash === '#admin777') renderAdmin(data.admin_all);
+            }
         });
+        document.getElementById('item-count').innerText = count;
+        document.getElementById('dynamic-list-content').innerHTML = listHtml;
     }
 
-    function renderAdmin(adminData) {
+    function saveItem(type, isVip) {
+        let d = { is_vip: isVip, device_token: myToken };
+        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
+        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
+
+        if(!d.name) return alert("Атыңызды жазыңыз!");
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
+            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
+            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
+            .then(r=>r.json()).then(res => {
+                alert(isVip ? "VIP өтінім жіберілді!" : "Сәтті жарияланды!");
+                loadMarkers();
+            });
+        }, () => alert("GPS қосыңыз!"));
+    }
+
+    function renderAdmin() {
         document.getElementById('admin-modal').style.display = 'block';
-        let h = `<table class="admin-table"><tr><th>Аты</th><th>Жұмысы</th><th>Барлық байланыс</th><th>Уақыты</th></tr>`;
-        
-        Object.keys(adminData).forEach(cat => {
-            adminData[cat].forEach(item => {
+        if(!adminDataFull) return;
+        let h = `<table><tr><th>Уақыты</th><th>Түрі</th><th>Ақпарат</th><th>Байланыстар</th><th>Әрекет</th></tr>`;
+        ['workers', 'goods', 'orders'].forEach(cat => {
+            adminDataFull[cat].forEach(item => {
+                const date = new Date(item.created_at).toLocaleString('kk-KZ');
                 h += `<tr>
-                    <td>${item.name || item.seller_name}</td>
-                    <td>${item.job || item.product_name}</td>
-                    <td>${renderContactsHtml(item.contacts)}</td>
-                    <td>${new Date(item.created_at).toLocaleString()}</td>
+                    <td>${date}</td>
+                    <td>${cat}</td>
+                    <td>${item.job || item.product_name || item.description}</td>
+                    <td>${formatContacts(item.contacts)}</td>
+                    <td>
+                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:orange; font-size:9px;">VIP</button>
+                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; font-size:9px;">Жою</button>
+                    </td>
                 </tr>`;
             });
         });
         document.getElementById('admin-content').innerHTML = h + "</table>";
     }
 
-    const map = L.map('map').setView([43.2389, 76.8897], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    function initVIP(type) { 
+        const phone = "8 707 123 45 67"; 
+        if(confirm(`💎 VIP ЖАРИЯЛАУ (490₸)\n\nТөлем нөмірі (Kaspi/Halyk):\n📍 ${phone}\n\nТөлеп болсаңыз 'OK' басыңыз.`)) saveItem(type, true); 
+    }
+
+    function deleteItem(id, type) {
+        if(confirm("Өшіресіз бе?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:myToken})}).then(()=>loadMarkers());
+    }
+
+    function toggleActive(id, type, val) {
+        fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})}).then(()=>loadMarkers());
+    }
+
+    function admDel(id, type) {
+        if(confirm("Админ: Өшіру?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:'admin777'})}).then(()=>loadMarkers());
+    }
+
+    window.onhashchange = () => {
+        if(location.hash === '#admin777') {
+            if(prompt("Құпия сөз:") === 'admin777') renderAdmin();
+            else location.hash = '';
+        } else document.getElementById('admin-modal').style.display = 'none';
+    };
+
+    function v(id){ return document.getElementById(id).value; }
     loadMarkers();
+    setInterval(loadMarkers, 15000);
 </script>
 </body>
 </html>
