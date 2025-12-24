@@ -308,51 +308,63 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     }
 
     // АДМИН ПАНЕЛЬ (ЖӨНДЕЛГЕН)
-    function renderAdmin() {
-        const modal = document.getElementById('admin-modal');
-        modal.style.display = 'block';
-        document.body.style.overflow = 'hidden'; // Негізгі беттің скроллын тоқтату
+function renderAdmin() {
+    const modal = document.getElementById('admin-modal');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden'; 
 
-        if(!adminDataFull) return;
+    if(!adminDataFull) return;
 
-        let h = `
-            <div style="position: sticky; top: -15px; background: white; padding: 15px 0; border-bottom: 2px solid #ddd; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
-                <h3 style="margin:0;">Админ Панель</h3>
-                <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">❌ ЖАБУ</button>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Уақыты</th>
-                        <th>Түрі</th>
-                        <th>Ақпарат</th>
-                        <th>Әрекет</th>
-                    </tr>
-                </thead>
-                <tbody>`;
+    let h = `
+        <div style="position: sticky; top: -15px; background: white; padding: 15px 0; border-bottom: 2px solid #ddd; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
+            <h3 style="margin:0;">Басқару панелі</h3>
+            <button onclick="closeAdmin()" style="background:red; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">❌ ЖАБУ</button>
+        </div>
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background:#eee;">
+                    <th style="padding:5px; border:1px solid #ddd;">Уақыты</th>
+                    <th style="padding:5px; border:1px solid #ddd;">Хабарлама / Иесі</th>
+                    <th style="padding:5px; border:1px solid #ddd;">Байланыс</th>
+                    <th style="padding:5px; border:1px solid #ddd;">Әрекет</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
-        ['workers', 'goods', 'orders'].forEach(cat => {
-            if(adminDataFull[cat]) {
-                adminDataFull[cat].forEach(item => {
-                    const date = new Date(item.created_at).toLocaleString('kk-KZ');
-                    h += `<tr>
-                        <td style="font-size:10px;">${date}</td>
-                        <td>${cat}</td>
-                        <td><b>${item.job || item.product_name || item.description}</b></td>
-                        <td>
-                            <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" style="background:${item.is_active?'gold':'#eee'}; padding:5px; border-radius:3px; border:1px solid #ccc;">
-                                ${item.is_active ? 'VIP ON' : 'VIP OFF'}
-                            </button>
-                            <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" style="background:red; color:white; border:none; padding:5px; margin-top:3px; border-radius:3px;">Жою</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-        });
+    ['workers', 'goods', 'orders'].forEach(cat => {
+        if(adminDataFull[cat]) {
+            adminDataFull[cat].forEach(item => {
+                const date = new Date(item.created_at).toLocaleString('kk-KZ');
+                // Хабарламаның негізгі мәтіні
+                const infoText = item.job || item.product_name || item.description || "Мәлімет жоқ";
+                // Хабарлама иесінің аты
+                const owner = item.name || item.seller_name || item.client_name || "Аноним";
+                // Байланыс деректерін форматтау (formatContacts функциясын қолданамыз)
+                const contacts = formatContacts(item);
 
-        h += `</tbody></table>`;
-        document.getElementById('admin-content').innerHTML = h;
-    }
+                h += `<tr>
+                    <td style="font-size:10px; padding:5px; border:1px solid #ddd;">${date}</td>
+                    <td style="padding:5px; border:1px solid #ddd;">
+                        <b>${infoText}</b><br>
+                        <small style="color:gray;">Иесі: ${owner}</small>
+                    </td>
+                    <td style="padding:5px; border:1px solid #ddd; font-size:10px;">${contacts}</td>
+                    <td style="padding:5px; border:1px solid #ddd; text-align:center;">
+                        <button onclick="toggleActive(${item.id},'${cat.slice(0,-1)}',${!item.is_active})" 
+                                style="background:${item.is_active ? 'gold' : '#eee'}; padding:5px; border-radius:3px; border:1px solid #ccc; width:100%; margin-bottom:5px; cursor:pointer;">
+                            ${item.is_active ? 'VIP ON' : 'VIP OFF'}
+                        </button>
+                        <button onclick="admDel(${item.id},'${cat.slice(0,-1)}')" 
+                                style="background:red; color:white; border:none; padding:5px; border-radius:3px; width:100%; cursor:pointer;">Жою</button>
+                    </td>
+                </tr>`;
+            });
+        }
+    });
+
+    h += `</tbody></table>`;
+    document.getElementById('admin-content').innerHTML = h;
+}
 
     function closeAdmin() { 
         document.getElementById('admin-modal').style.display = 'none'; 
@@ -400,7 +412,33 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
 
     function deleteItem(id, type) { if(confirm("Өшіруді растайсыз ба?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:myToken})}).then(()=>loadMarkers()); }
     function toggleActive(id, type, val) { fetch(API+'/admin/toggle-active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,active:val})}).then(()=>loadMarkers()); }
-    function admDel(id, type) { if(confirm("Жою?")) fetch(API+'/delete-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,token:'admin777'})}).then(()=>loadMarkers()); }
+    function admDel(id, type) {
+    if(confirm("Админ: Бұл хабарламаны өшіруді растайсыз ба?")) {
+        fetch(API + '/delete-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, type: type, token: 'admin777' })
+        })
+        .then(res => {
+            if(res.ok) {
+                alert("Жойылды!");
+                // 1. Картадағы маркерлерді жаңарту
+                loadMarkers(); 
+                // 2. Админ панельдегі тізімді де бірден жаңарту
+                setTimeout(() => {
+                    fetch(API + '/get-all')
+                        .then(r => r.json())
+                        .then(data => {
+                            adminDataFull = data.admin_all;
+                            renderAdmin(); // Тізімді қайта сызады
+                        });
+                }, 500);
+            } else {
+                alert("Қате: Өшіру мүмкін болмады.");
+            }
+        });
+    }
+}
     function v(id){ return document.getElementById(id).value; }
     function collectContacts(id) {
         let c = []; document.getElementById(id).querySelectorAll('.contact-row').forEach(r => {
