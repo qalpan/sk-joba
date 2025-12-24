@@ -18,44 +18,70 @@ async function initDB() {
     try {
         console.log("Деректер базасы тексерілуде...");
 
-        // 1. Кестелерді құру (егер жоқ болса)
+        // 1. Кестелерді құру немесе жаңарту
+        // workers кестесі
         await pool.query(`CREATE TABLE IF NOT EXISTS workers (
-            id SERIAL PRIMARY KEY, name TEXT, phone TEXT, job TEXT, 
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            id SERIAL PRIMARY KEY, 
+            name TEXT, 
+            phone TEXT, 
+            job TEXT, 
+            lat DOUBLE PRECISION, 
+            lon DOUBLE PRECISION, 
+            is_active BOOLEAN DEFAULT FALSE, 
+            device_token TEXT, 
             contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
+        // goods кестесі
         await pool.query(`CREATE TABLE IF NOT EXISTS goods (
-            id SERIAL PRIMARY KEY, seller_name TEXT, product_name TEXT, 
-            price TEXT, phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            id SERIAL PRIMARY KEY, 
+            seller_name TEXT, 
+            product_name TEXT, 
+            price TEXT, 
+            phone TEXT, 
+            lat DOUBLE PRECISION, 
+            lon DOUBLE PRECISION, 
+            is_active BOOLEAN DEFAULT FALSE, 
+            device_token TEXT, 
             contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
+        // orders кестесі
         await pool.query(`CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY, client_name TEXT, description TEXT, 
-            phone TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, 
-            is_active BOOLEAN DEFAULT FALSE, device_token TEXT, 
+            id SERIAL PRIMARY KEY, 
+            client_name TEXT, 
+            description TEXT, 
+            phone TEXT, 
+            lat DOUBLE PRECISION, 
+            lon DOUBLE PRECISION, 
+            is_active BOOLEAN DEFAULT FALSE, 
+            device_token TEXT, 
             contacts JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
-        // 2. Миграция: Ескі кестелерде бағандар жоқ болса, қосу
+        // 2. МИГРАЦИЯ: Егер кесте бұрыннан бар болса, бірақ жаңа бағандар жоқ болса, оларды қосамыз
         const tables = ['workers', 'goods', 'orders'];
+        
         for (const table of tables) {
+            // is_active бағаны
             await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`);
+            
+            // device_token бағаны
             await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS device_token TEXT`);
             
-            // ОСЫ ЖЕРГЕ ЖАҢАДАН ҚОСТЫҚ: Байланыс тізімін сақтайтын баған
+            // contacts бағаны (бірнеше байланыс түрін сақтау үшін)
             await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS contacts JSONB DEFAULT '[]'`);
+            
+            // created_at бағаны (уақытты көрсету үшін)
+            await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
         }
 
-        console.log("Деректер базасы жұмысқа дайын!");
+        console.log("Деректер базасының құрылымы толық тексерілді және дайын!");
     } catch (err) {
-        console.error("DB Init Error:", err);
+        console.error("DB Init Error (Базаны реттеуде қате шықты):", err);
     }
 }
 initDB();
