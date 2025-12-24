@@ -128,46 +128,43 @@ app.get('/get-all', async (req, res) => {
 
 const processToken = (token, isVip) => isVip ? `WAITING_VIP_${token}` : token;
 
-// Worker сақтау
+// Worker сақтау (Жөнделді)
 app.post('/save-worker', async (req, res) => {
     try {
-        const { name, phone, job, lat, lon, device_token, is_vip } = req.body;
+        const { name, phone, job, lat, lon, device_token, is_vip, contacts } = req.body;
         const finalToken = processToken(device_token, is_vip);
         await pool.query(
-            'INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
-            [name, phone, job, lat, lon, finalToken]
+            'INSERT INTO workers (name, phone, job, lat, lon, device_token, is_active, contacts) VALUES ($1,$2,$3,$4,$5,$6, false, $7)', 
+            [name, phone, job, lat, lon, finalToken, contacts]
         );
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// Goods сақтау
+// Goods сақтау (Жөнделді)
 app.post('/save-goods', async (req, res) => {
     try {
-        const { name, product, price, phone, lat, lon, device_token, is_vip } = req.body;
+        const { name, product, price, phone, lat, lon, device_token, is_vip, contacts } = req.body;
         const finalToken = processToken(device_token, is_vip);
         await pool.query(
-            'INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7, false)', 
-            [name, product, price, phone, lat, lon, finalToken]
+            'INSERT INTO goods (seller_name, product_name, price, phone, lat, lon, device_token, is_active, contacts) VALUES ($1,$2,$3,$4,$5,$6,$7, false, $8)', 
+            [name, product, price, phone, lat, lon, finalToken, contacts]
         );
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// Order сақтау
+// Order сақтау (Жөнделді)
 app.post('/save-order', async (req, res) => {
     try {
-        const { name, description, phone, lat, lon, device_token, is_vip } = req.body;
+        const { name, description, phone, lat, lon, device_token, is_vip, contacts } = req.body;
         const finalToken = processToken(device_token, is_vip);
         await pool.query(
-            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active) VALUES ($1,$2,$3,$4,$5,$6, false)', 
-            [name, description, phone, lat, lon, finalToken]
+            'INSERT INTO orders (client_name, description, phone, lat, lon, device_token, is_active, contacts) VALUES ($1,$2,$3,$4,$5,$6, false, $7)', 
+            [name, description, phone, lat, lon, finalToken, contacts]
         );
         res.json({success: true});
-    } catch (err) { 
-        console.error("Order Save Error:", err);
-        res.status(500).json({error: err.message}); 
-    }
+    } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 // VIP статусын өзгерту (Админ үшін)
