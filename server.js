@@ -48,6 +48,7 @@ app.post('/user-ping', (req, res) => {
 });
 
 // БАРЛЫҚ ДЕРЕКТЕРДІ АЛУ ЖӘНЕ СҮЗГІЛЕУ
+// server.js ішіндегі get-all бөлімін осылай ауыстырып көріңіз:
 app.get('/get-all', async (req, res) => {
     try {
         const w = await pool.query('SELECT * FROM workers');
@@ -57,19 +58,17 @@ app.get('/get-all', async (req, res) => {
         const now = Date.now();
         const isOnline = (token) => (now - (onlineUsers[token] || 0)) < 45000;
 
-        // КАРТАДА КӨРІНУ ЕРЕЖЕСІ: 
-        // Тек VIP (is_active = true) немесе ТЕГІН + ОНЛАЙН болса ғана көрінеді
-        const filterFn = (item) => item.is_active || isOnline(item.device_token);
+        // ЛОГИКА: 
+        // 1. Егер i.is_active болса (Админ VIP қылса) - КӨРІНЕДІ.
+        // 2. Егер онлайн болса - КӨРІНЕДІ.
+        // Егер сізге ТЕК Админ растағандар ғана керек болса, isOnline-ды алып тастау керек.
+        const filterFn = (i) => i.is_active === true || isOnline(i.device_token);
 
         res.json({ 
             workers: w.rows.filter(filterFn), 
             goods: g.rows.filter(filterFn), 
-            orders: o.rows.filter(filterFn), // Тапсырыстар енді картада шығады
-            admin_all: { 
-                workers: w.rows, 
-                goods: g.rows, 
-                orders: o.rows 
-            }
+            orders: o.rows.filter(filterFn), 
+            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
         });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
