@@ -349,24 +349,40 @@ function filterMarkers() {
     document.getElementById('item-count').innerText = markersGroup.getLayers().length;
 }
 
-    function saveItem(type, isVip) {
-        let d = { is_vip: isVip, device_token: myToken };
-        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
-        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
-        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); d.phone=JSON.parse(d.contacts)[0]?.val || ''; }
+function saveItem(type, isVip) {
+    let d = { is_vip: isVip, device_token: myToken };
+    
+    // Деректерді жинау (Бұрынғыша)
+    if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
+    if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
+    if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
 
-        if(!d.name) return alert("Атыңызды жазыңыз!");
+    // ТЕЛЕФОН НӨМІРІН БАЗАҒА БӨЛЕК ТЕ САҚТАУ (тез хабарласу үшін)
+    try {
+        const cArr = JSON.parse(d.contacts);
+        d.phone = cArr.find(c => c.type === 'Тел')?.val || '';
+    } catch(e) { d.phone = ''; }
 
-        navigator.geolocation.getCurrentPosition(pos => {
-            d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
-            const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
-            fetch(API + endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
-            .then(r=>r.json()).then(res => {
-                alert(isVip ? "VIP өтінім жіберілді!" : "Сәтті жарияланды!");
-                loadMarkers();
-            });
-        }, () => alert("GPS қосыңыз!"));
-    }
+    // GPS ҚОСУ ЖӘНЕ КАРТАҒА ЖІБЕРУ
+    navigator.geolocation.getCurrentPosition(pos => {
+        d.lat = pos.coords.latitude; 
+        d.lon = pos.coords.longitude;
+        
+        const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
+        
+        fetch(API + endpoint, { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify(d) 
+        })
+        .then(r=>r.json()).then(res => {
+            alert(isVip ? "VIP өтінім жіберілді!" : "Тегін жарияланды! Картада онлайн болғанда көрінеді.");
+            loadMarkers(); // Картаны бірден жаңарту
+        });
+    }, () => {
+        alert("GPS рұқсат етілмеген! Картаға шығару үшін GPS қосыңыз.");
+    });
+}
 
 // Админ панельді рендеринг жасау
 function renderAdmin() {
