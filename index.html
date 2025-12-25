@@ -3,95 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SK-Joba: Толық Жөнделген</title>
+    <title>SK-Joba: Кәсіби Жүйе</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         :root { --blue: #007bff; --gold: #ffd700; --red: #dc3545; --green: #28a745; }
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; height: 100%; overflow: hidden; }
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; height: 100%; overflow: hidden; background: #f4f7f6; }
         
-        /* 2. Карта режимдері */
-        #map { height: 45vh; width: 100%; background: #ccc; position: relative; }
-        .grayscale { filter: grayscale(100%) brightness(0.8); }
+        #map { height: 45vh; width: 100%; }
+        .grayscale { filter: grayscale(100%) contrast(1.2); }
         
-        .panel { height: 55vh; overflow-y: auto; background: white; padding: 15px; box-sizing: border-box; }
-        .card { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; border-left: 5px solid var(--blue); position: relative; }
-        .card.vip { border-left-color: var(--gold); background: #fffdf5; }
+        .main-panel { height: 55vh; overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .card { background: white; border: 1px solid #ddd; padding: 12px; margin-bottom: 10px; border-radius: 10px; border-left: 5px solid var(--blue); }
+        .card.vip { border-left-color: var(--gold); background: #fffef0; }
         
-        /* Байланыс мәліметтерінің стилі */
-        .info-tag { background: #f1f3f5; padding: 2px 8px; border-radius: 4px; font-size: 12px; display: block; margin-top: 4px; border: 1px solid #dee2e6; }
+        .contact-box { background: #f8f9fa; padding: 5px 10px; border-radius: 5px; font-size: 13px; margin-top: 5px; border: 1px solid #eee; }
+        .contact-box b { color: var(--blue); }
+
+        input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 14px; }
+        button { cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-post { background: var(--green); color: white; border: none; }
+        .btn-vip { background: var(--gold); color: black; border: none; }
         
-        input, select, button { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { cursor: pointer; font-weight: bold; }
-        
-        .admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
-        .admin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+        .admin-table th, .admin-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<div class="panel">
-    <div style="display:flex; gap:5px;">
-        <button onclick="toggleMap()" style="background:#333; color:white;">🌓 Карта стилі</button>
-        <button onclick="checkAdmin()" style="background:#eee; width:50px;">🛡</button>
-    </div>
+<div class="main-panel">
+    <button onclick="toggleMap()" style="background:#333; color:white; margin-bottom: 10px;">🌓 Карта түсін ауыстыру</button>
 
-    <div style="margin-top:10px;">
-        <input type="text" id="searchInput" placeholder="🔍 Мамандық, тауар немесе сипаттама..." oninput="filterMarkers()">
-        <select id="catFilter" onchange="filterMarkers()" style="margin-top:5px;"><option value="">Барлық санаттар</option></select>
-    </div>
+    <input type="text" id="searchInput" placeholder="🔍 Іздеу (Мамандық, тауар, сипаттама...)" oninput="filterMarkers()">
+    <select id="catFilter" onchange="filterMarkers()"></select>
 
-    <div style="margin-top:15px;">
-        <div style="font-weight:bold; border-bottom: 2px solid #eee; padding-bottom:5px;">📍 Жақын маңда: (<span id="item-count">0</span>)</div>
+    <div style="margin-top:20px;">
+        <h4 style="color:var(--blue); margin:0;">📍 Жақын маңда: (<span id="count">0</span>)</h4>
         <div id="list-content" style="margin-top:10px;"></div>
     </div>
 
-    <hr style="margin:20px 0;">
+    <hr style="margin:25px 0;">
 
-    <div id="form-box">
-        <h4>📢 Жариялау</h4>
+    <div id="post-form">
+        <h4>📢 Жаңа хабарлама</h4>
         <select id="p_type">
             <option value="Қызмет">👷 Қызмет (Мамандық)</option>
             <option value="Тауар">📦 Тауар (Сипаттама)</option>
             <option value="Тапсырыс">🛒 Тапсырыс (Бөлім)</option>
         </select>
         <input id="p_name" placeholder="Атыңыз (мин. 2 таңба)">
-        <input id="p_job" placeholder="Негізгі ақпарат (Сантехник, Көлік...)">
+        <input id="p_job" placeholder="Не ұсынасыз немесе не керек?">
         
-        <div id="contacts_div">
+        <div id="c_area">
             <div class="c-row" style="display:flex; gap:5px;">
                 <select class="ct" style="width:35%"><option>Тел</option><option>Email</option><option>WhatsApp</option></select>
                 <input class="cv" style="width:65%" placeholder="Дерек">
             </div>
         </div>
-        <button onclick="addCRow()" style="background:#f8f9fa; color:#666; font-size:12px;">+ Байланыс қосу</button>
+        <button onclick="addCRow()" style="background:none; color:var(--blue); font-size:12px; border:none; width:auto;">+ Байланыс қосу</button>
         
         <div style="display:flex; gap:10px; margin-top:10px;">
-            <button onclick="sendAd(false)" style="background:var(--green); color:white;">Тегін</button>
-            <button onclick="sendAd(true)" style="background:var(--gold);">💎 VIP</button>
+            <button onclick="save(false)" class="btn-post">Тегін жариялау</button>
+            <button onclick="save(true)" class="btn-vip">💎 VIP (Админ)</button>
         </div>
     </div>
 </div>
 
-<div id="adminPanel" class="admin-modal">
+<div id="adminPanel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2>🛡 Әкімшілік панелі</h2>
-        <button onclick="closeAdmin()" style="width:auto; background:var(--red); color:white; padding:5px 15px;">Жабу</button>
+        <h2>🛡 Әкімшілік басқару</h2>
+        <button onclick="location.hash=''" style="width:auto; background:var(--red); color:white; padding:5px 20px;">Жабу</button>
     </div>
     <table class="admin-table">
         <thead>
             <tr>
-                <th>Уақыты</th>
-                <th>Түрі/Аты</th>
-                <th>Санат</th>
-                <th>Байланыс деректері</th>
-                <th>VIP</th>
+                <th>Уақыт</th>
+                <th>Аты / Санат</th>
+                <th>Байланыс</th>
+                <th>Статус</th>
                 <th>Әрекет</th>
             </tr>
         </thead>
-        <tbody id="admin-table-body"></tbody>
+        <tbody id="admin-rows"></tbody>
     </table>
 </div>
 
@@ -109,39 +104,38 @@
     let rawData = [];
 
     // 1. Валидация
-    function validate(type, val) {
-        val = val.trim();
-        if (type === 'Тел') return /^\+7\d{10}$/.test(val.replace(/\s+/g, ''));
-        if (type === 'Email') return val.includes('@') && val.includes('.');
-        return val.length >= 2;
-    }
+    const validate = (t, v) => {
+        v = v.trim();
+        if (t === 'Тел') return /^\+7\d{10}$/.test(v.replace(/\s+/g, ''));
+        if (t === 'Email') return v.includes('@') && v.includes('.');
+        return v.length >= 2;
+    };
 
     function toggleMap() { document.getElementById('map').classList.toggle('grayscale'); }
-    
     function addCRow() {
-        const div = document.createElement('div');
-        div.className = 'c-row'; div.style = "display:flex; gap:5px; margin-top:5px;";
-        div.innerHTML = `<select class="ct" style="width:35%"><option>Тел</option><option>Email</option><option>WhatsApp</option></select><input class="cv" style="width:65%" placeholder="Дерек">`;
-        document.getElementById('contacts_div').appendChild(div);
+        const d = document.createElement('div');
+        d.className = 'c-row'; d.style = "display:flex; gap:5px; margin-top:5px;";
+        d.innerHTML = `<select class="ct" style="width:35%"><option>Тел</option><option>Email</option><option>WhatsApp</option></select><input class="cv" style="width:65%" placeholder="Дерек">`;
+        document.getElementById('c_area').appendChild(d);
     }
 
-    async function loadData() {
+    async function load() {
         try {
             const r = await fetch(API + '/get-all');
             rawData = await r.json();
-            updateCats();
+            
+            // 7. Автоматты санаттар
+            const s = document.getElementById('catFilter');
+            const cats = [...new Set(rawData.map(i => i.job))].filter(Boolean);
+            s.innerHTML = '<option value="">Барлық санаттар</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+            checkAdminHash();
             filterMarkers();
-        } catch(e) { console.log("Жүктеу қатесі"); }
+        } catch(e) { console.error("Жүктеу қатесі"); }
     }
 
-    function updateCats() {
-        const s = document.getElementById('catFilter');
-        const cats = [...new Set(rawData.map(i => i.job))].filter(Boolean);
-        s.innerHTML = '<option value="">Барлық санаттар</option>';
-        cats.forEach(c => s.innerHTML += `<option value="${c}">${c}</option>`);
-    }
-
-    function jitter() { return (Math.random() - 0.5) * 0.0005; }
+    // Маркерлер қабаттаспас үшін Jitter
+    const jitter = () => (Math.random() - 0.5) * 0.0006;
 
     function filterMarkers() {
         markers.forEach(m => map.removeLayer(m));
@@ -152,14 +146,11 @@
         const bounds = map.getBounds();
 
         rawData.forEach(i => {
-            const timeDiff = (now - new Date(i.created_at).getTime()) / 3600000;
-            if (timeDiff > 24) return;
-
             const isOnline = (now - (i.last_ping || 0)) < 40000;
             const isOwner = i.token === myToken;
 
-            // Көріну логикасы
-            if (i.is_vip && !i.is_active && !isOwner && location.hash !== "#admin777") return;
+            // 3 & 4. Көріну шарты
+            if (i.is_vip && !i.is_active && !isOwner) return;
             if (!i.is_vip && !isOnline && !isOwner) return;
 
             if (cat && i.job !== cat) return;
@@ -171,15 +162,15 @@
             const marker = L.circleMarker([mLat, mLon], {
                 color: i.is_vip ? 'gold' : 'blue',
                 fillColor: isOnline ? 'green' : (i.is_vip ? 'gold' : 'blue'),
-                fillOpacity: 0.8, radius: 10, weight: 3
+                fillOpacity: 0.8, radius: 11, weight: 3
             }).addTo(map);
 
-            let cArr = []; try { cArr = JSON.parse(i.contacts); } catch(e){}
-            const cH = cArr.map(c => `<span class="info-tag"><b>${c.type}:</b> ${c.val}</span>`).join('');
-            const dBtn = isOwner ? `<button onclick="del(${i.id})" style="background:var(--red); color:white; border:none; padding:2px 8px; border-radius:4px; font-size:10px; float:right;">Өшіру</button>` : "";
+            let contacts = []; try { contacts = JSON.parse(i.contacts); } catch(e){}
+            const contactHtml = contacts.map(c => `<div class="contact-box"><b>${c.type}:</b> ${c.val}</div>`).join('');
+            const delBtn = isOwner ? `<button onclick="del(${i.id})" style="background:var(--red); color:white; border:none; padding:3px 8px; border-radius:4px; font-size:11px; margin-top:5px; cursor:pointer;">Өшіру</button>` : "";
             
-            // 5. Мини ақпарат Popup-та
-            marker.bindPopup(`<b>${i.job}</b><br><small>${i.name}</small><hr>${cH}${dBtn}`);
+            // 5. Толық ақпарат (Popup)
+            marker.bindPopup(`<b>${i.job}</b><br><small>${i.name}</small><hr>${contactHtml}${delBtn}`);
             markers.push(marker);
 
             // 6. Жақын маңда тізімі
@@ -187,35 +178,34 @@
                 count++;
                 listH += `
                     <div class="card ${i.is_vip?'vip':''}">
-                        ${dBtn}
-                        <b>${i.job}</b> <small>(${i.type})</small><br>
-                        <small style="color:gray">${i.name}</small> ${isOnline?'🟢':''}<br>
-                        ${cH}
+                        <b>${i.job}</b> <small>(${i.type})</small> ${isOnline?'🟢':''}<br>
+                        <small style="color:gray">${i.name}</small>
+                        ${contactHtml}${delBtn}
                     </div>`;
             }
         });
-        document.getElementById('item-count').innerText = count;
-        document.getElementById('list-content').innerHTML = listH || "<p style='color:gray; font-size:12px;'>Бұл аумақта ештеңе жоқ.</p>";
+        document.getElementById('count').innerText = count;
+        document.getElementById('list-content').innerHTML = listH || "<p style='font-size:12px;color:gray;'>Бұл аумақта ештеңе жоқ</p>";
     }
 
-    async function sendAd(isVip) {
+    async function save(isVip) {
         const n = document.getElementById('p_name').value;
         const j = document.getElementById('p_job').value;
-        if (!validate('T', n) || !validate('T', j)) return alert("Атыңыз бен ақпарат 2 таңбадан кем болмасын!");
+        if (!validate('T', n) || !validate('T', j)) return alert("Атыңыз бен сипаттама 2 таңбадан кем болмасын!");
 
         let c = [];
-        let err = false;
+        let ok = true;
         document.querySelectorAll('.c-row').forEach(row => {
-            const ct = row.querySelector('.ct').value, cv = row.querySelector('.cv').value;
-            if (cv) {
-                if (validate(ct, cv)) c.push({type: ct, val: cv});
-                else { err = true; alert(`${ct} қате! (Тел: +7... 12 таңба, Email-де @ мен . болуы керек)`); }
+            const t = row.querySelector('.ct').value, v = row.querySelector('.cv').value;
+            if (v) {
+                if (validate(t, v)) c.push({type: t, val: v});
+                else { ok = false; alert(`${t} қате! Тел: +7... 12 таңба, Email: @ мен . болуы керек`); }
             }
         });
 
-        if (err || c.length === 0) return;
-        if (isVip) alert("VIP төлем туралы админге жіберілді. Төлемнен соң 24 сағатқа қосылады.");
+        if (!ok || c.length === 0) return;
 
+        // Нақты орынды анықтау (enableHighAccuracy)
         navigator.geolocation.getCurrentPosition(async pos => {
             await fetch(API + '/save', {
                 method: 'POST',
@@ -226,45 +216,46 @@
                     contacts: JSON.stringify(c), token: myToken
                 })
             });
-            loadData();
-        }, () => alert("GPS қосыңыз!"), {enableHighAccuracy: true});
+            if(isVip) alert("VIP төлем хабарламасы админге жіберілді.");
+            load();
+        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true, timeout: 10000 });
     }
 
-    function del(id) { if(confirm("Растайсыз ба?")) fetch(API+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,token:myToken})}).then(loadData); }
+    function del(id) { if(confirm("Растайсыз ба?")) fetch(API+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,token:myToken})}).then(load); }
 
-    // Админ
-    function checkAdmin() {
-        const p = prompt("Password:");
-        if (p === "admin777") {
+    // Админ панель логикасы
+    function checkAdminHash() {
+        if (location.hash === "#admin777") {
             document.getElementById('adminPanel').style.display = 'block';
             let h = "";
             rawData.forEach(i => {
                 let contacts = []; try { contacts = JSON.parse(i.contacts); } catch(e) {}
                 h += `<tr>
                     <td>${new Date(i.created_at).toLocaleString()}</td>
-                    <td>${i.type}<br><b>${i.name}</b></td>
-                    <td>${i.job}</td>
-                    <td>${contacts.map(x=>`<div>${x.type}: ${x.val}</div>`).join('')}</td>
-                    <td>${i.is_active ? '✅' : '⏳'}</td>
+                    <td><b>${i.name}</b><br>${i.job}</td>
+                    <td>${contacts.map(c => `<div>${c.val}</div>`).join('')}</td>
+                    <td>${i.is_active ? '✅' : (i.is_vip ? '⏳ Төлем' : 'Тегін')}</td>
                     <td>
-                        <button onclick="admTgl(${i.id},${!i.is_active})" style="background:var(--blue); color:white; font-size:10px;">${i.is_active?'Өшіру':'Қосу'}</button>
-                        <button onclick="del(${i.id})" style="background:var(--red); color:white; font-size:10px; margin-top:2px;">Жою</button>
+                        <button onclick="admTgl(${i.id},${!i.is_active})" style="background:var(--blue); color:white; font-size:10px;">Қосу/Өшіру</button>
+                        <button onclick="del(${i.id})" style="background:var(--red); color:white; font-size:10px;">Жою</button>
                     </td>
                 </tr>`;
             });
-            document.getElementById('admin-table-body').innerHTML = h;
+            document.getElementById('admin-rows').innerHTML = h;
+        } else {
+            document.getElementById('adminPanel').style.display = 'none';
         }
     }
 
     async function admTgl(id, a) {
         await fetch(API + '/admin-toggle', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, active: a, pass: "admin777"}) });
-        loadData(); checkAdmin();
+        load();
     }
-    function closeAdmin() { document.getElementById('adminPanel').style.display='none'; }
 
+    window.onhashchange = checkAdminHash;
     setInterval(() => fetch(API+'/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:myToken})}), 30000);
     map.on('moveend', filterMarkers);
-    loadData();
+    load();
 </script>
 </body>
 </html>
