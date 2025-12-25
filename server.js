@@ -54,14 +54,23 @@ app.get('/ads', async (req, res) => {
 // 1 & 4 ТАЛАПТАР: Сақтау (VIP болса админ рұқсатын күтеді)
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
-    const active = is_vip ? false : true; // VIP болса active = false
+    
+    // МАҢЫЗДЫ: VIP болса false, тегін болса бірден true (4-талап)
+    const active = is_vip === true ? false : true; 
+
     try {
         await pool.query(
             "INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
             [name, job, type, tel, email, lat, lon, is_vip, active, token]
         );
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json(err.message); }
+});
+
+app.post('/delete', async (req, res) => {
+    const { id, token } = req.body;
+    await pool.query("DELETE FROM ads WHERE id = $1 AND token = $2", [id, token]);
+    res.json({ success: true });
 });
 
 // 5 ТАЛАП: Админ панель функциясы
