@@ -3,7 +3,12 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const app = express();
 
-app.use(cors());
+// CORS қатесін болдырмау үшін осылай жазылуы тиіс
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
 const pool = new Pool({
@@ -11,8 +16,7 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Пайдаланушылардың соңғы активті уақытын сақтау
-let onlineUsers = {};
+let onlineUsers = {}; // Пайдаланушылардың онлайн статусын сақтау
 
 async function initDB() {
     try {
@@ -28,7 +32,7 @@ async function initDB() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`);
         }
-        console.log("DB Ready");
+        console.log("База дайын");
     } catch (err) { console.error(err); }
 }
 initDB();
@@ -36,7 +40,6 @@ initDB();
 app.post('/user-ping', (req, res) => {
     const { token } = req.body;
     if (token) {
-        // Таза токенді сақтаймыз (WAITING_VIP_ болса да)
         const cleanToken = token.replace('WAITING_VIP_', '');
         onlineUsers[cleanToken] = Date.now();
     }
@@ -49,37 +52,28 @@ app.get('/get-all', async (req, res) => {
         const g = await pool.query('SELECT * FROM goods');
         const o = await pool.query('SELECT * FROM orders');
 
-        // Әр хабарламаға иесінің соңғы онлайн уақытын жапсыру
         const attachStatus = (rows) => rows.map(item => {
             const cleanToken = item.device_token ? item.device_token.replace('WAITING_VIP_', '') : null;
             return {
                 ...item,
-                last_ping: onlineUsers[cleanToken] || 0 // Фронтенд осыны тексереді
+                last_ping: onlineUsers[cleanToken] || 0
             };
         });
 
-        const workers = attachStatus(w.rows);
-        const goods = attachStatus(g.rows);
-        const orders = attachStatus(o.rows);
-
         res.json({ 
-            workers, 
-            goods, 
-            orders,
-            admin_all: { workers, goods, orders } 
+            workers: attachStatus(w.rows), 
+            goods: attachStatus(g.rows), 
+            orders: attachStatus(o.rows),
+            admin_all: { workers: w.rows, goods: g.rows, orders: o.rows }
         });
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// Сақтау функцияларын оңтайландыру (is_vip қолданылса, токенді өзгерту)
 const saveTemplate = async (table, cols, vals, device_token, is_vip) => {
     const finalToken = is_vip ? `WAITING_VIP_${device_token}` : device_token;
-    // Егер VIP болса - false (админ күтеді), VIP емес болса - true (бірден шығады)
     const isActive = is_vip ? false : true; 
-    
     const placeholders = vals.map((_, i) => `$${i + 1}`).join(',');
     const query = `INSERT INTO ${table} (${cols.join(',')}, device_token, is_active) VALUES (${placeholders}, $${vals.length + 1}, $${vals.length + 2})`;
-    
     await pool.query(query, [...vals, finalToken, isActive]);
 };
 
@@ -120,21 +114,18 @@ app.post('/delete-item', async (req, res) => {
     try {
         const { id, type, token } = req.body;
         const table = type === 'worker' ? 'workers' : (type === 'good' ? 'goods' : 'orders');
-        
         let query, params;
         if (token === 'admin777') {
             query = `DELETE FROM ${table} WHERE id = $1`;
             params = [id];
         } else {
-            // Иесі өзінікін VIP болса да, болмаса да өшіре алады
             query = `DELETE FROM ${table} WHERE id = $1 AND (device_token = $2 OR device_token = $3)`;
             params = [id, token, `WAITING_VIP_${token}`];
         }
-        
         await pool.query(query, params);
         res.json({success: true});
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды`));
