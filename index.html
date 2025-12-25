@@ -126,32 +126,38 @@
         document.getElementById('list').innerHTML = listH;
     }
 
-    async function saveAd(isVip) {
-        if (!checkValid()) return;
-        
-        navigator.geolocation.getCurrentPosition(async (p) => {
-            const body = {
-                name: document.getElementById('p_name').value,
-                job: document.getElementById('p_job').value,
-                type: document.getElementById('p_type').value,
-                tel: document.getElementById('p_tel').value,
-                email: document.getElementById('p_email').value,
-                lat: p.coords.latitude,
-                lon: p.coords.longitude,
-                is_vip: isVip,
-                token: myToken
-            };
+async function saveAd(isVip) {
+    if (!checkValid()) return; // 1-талап: Валидация
 
-            await fetch(API + '/save', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(body)
-            });
-
-            if (isVip) alert("VIP төлем хабарламасы админге кетті! Төлемнен соң жарияланады.");
-            load();
-        }, () => alert("GPS рұқсат етіңіз!"));
+    // 4-талап: Төлем туралы хабарлама
+    if (isVip) {
+        const confirmPay = confirm("VIP жариялау ақылы. Админге төлем туралы өтінім жіберілсін бе?");
+        if (!confirmPay) return;
     }
+
+    navigator.geolocation.getCurrentPosition(async (p) => {
+        const body = {
+            name: document.getElementById('p_name').value,
+            job: document.getElementById('p_job').value,
+            type: document.getElementById('p_type').value,
+            tel: document.getElementById('p_tel').value,
+            email: document.getElementById('p_email').value,
+            lat: p.coords.latitude,
+            lon: p.coords.longitude,
+            is_vip: isVip,
+            token: myToken
+        };
+
+        await fetch(API + '/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+
+        alert(isVip ? "VIP күтуде. Төлем расталған соң шығады." : "Тегін хабарлама лезде қосылды!");
+        load();
+    }, () => alert("GPS қосыңыз!"));
+}
 
     async function load() {
         try {
