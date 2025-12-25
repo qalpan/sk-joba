@@ -5,20 +5,17 @@
     <title>Карта Хабарлама - SK Joba</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
-        #map { height: 45vh; width: 100%; transition: 0.5s; border-bottom: 2px solid #ccc; }
+        #map { height: 45vh; width: 100%; transition: 0.5s; }
         .grayscale { filter: grayscale(1) brightness(0.8); }
-        .card { border-left: 5px solid #007bff; padding: 10px; margin: 10px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 5px; }
-        .card.vip { border-left-color: gold; background: #fffef0; }
         /* 5-талап: Мини ақпарат стилі */
         .mini-label { 
             background: white; border: 1px solid #333; padding: 2px 5px; 
             border-radius: 3px; font-size: 11px; white-space: nowrap; font-weight: bold;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
         }
+        .card { border-left: 5px solid #007bff; padding: 10px; margin: 10px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 5px; }
+        .card.vip { border-left-color: gold; background: #fffef0; }
         #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:2000; padding:20px; overflow:auto; }
         input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        .btn-post { background: #28a745; color: #fff; font-weight: bold; cursor: pointer; }
-        .btn-vip { background: gold; color: #000; font-weight: bold; cursor: pointer; }
         .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px; font-size: 10px; cursor: pointer; float: right; }
     </style>
 </head>
@@ -27,24 +24,24 @@
 <div id="map"></div>
 
 <div style="padding:15px;">
-    <button onclick="document.getElementById('map').classList.toggle('grayscale')" style="background:#333; color:white;">🌓 Түсті / Ақ-қара карта</button>
+    <button onclick="document.getElementById('map').classList.toggle('grayscale')">🌓 Түсті / Ақ-қара карта</button>
 
-    <input type="text" id="search" placeholder="🔍 Санат, мамандық немесе тауар..." oninput="render()">
+    <input type="text" id="search" placeholder="🔍 Санат немесе мамандық..." oninput="render()">
 
     <h4 style="margin:10px 0;">📍 Жақын маңда: (<span id="count">0</span>)</h4>
     <div id="list" style="max-height: 200px; overflow-y: auto;"></div>
 
     <hr>
-    <h4>📢 Жариялау</h4>
+    <h4>📢 Жаңа хабарлама</h4>
     <select id="p_type"><option>Қызмет</option><option>Тауар</option><option>Тапсырыс</option></select>
     <input id="p_name" placeholder="Атыңыз (мин. 2 таңба)">
-    <input id="p_job" placeholder="Қандай қызмет немесе тауар?">
+    <input id="p_job" placeholder="Қызмет немесе тауар сипаттамасы">
     <input id="p_tel" placeholder="Тел: +77001234567 (12 таңба)">
     <input id="p_email" placeholder="Email: example@mail.kz">
     
     <div style="display:flex; gap:10px;">
-        <button onclick="saveAd(false)" class="btn-post">Тегін (Лезде)</button>
-        <button onclick="saveAd(true)" class="btn-vip">💎 VIP (Админнен соң)</button>
+        <button onclick="saveAd(false)" style="background:#28a745; color:white;">Тегін (Лезде)</button>
+        <button onclick="saveAd(true)" style="background:gold; color:black;">💎 VIP (Админнен соң)</button>
     </div>
 </div>
 
@@ -65,13 +62,13 @@
     let rawData = [];
     let markers = [];
 
-    // 1-талап: Стандартты тексерулер
+    // 1-талап: Валидация
     function checkValid() {
         const n = document.getElementById('p_name').value, j = document.getElementById('p_job').value,
               t = document.getElementById('p_tel').value, e = document.getElementById('p_email').value;
-        if (n.length < 2 || j.length < 2) return alert("Атыңыз немесе мәтін кемінде 2 таңба!");
-        if (!/^\+7\d{10}$/.test(t)) return alert("Тел қате! Формат: +77011112233 (12 таңба)");
-        if (!e.includes('@') || !e.includes('.')) return alert("Email қате!");
+        if (n.length < 2 || j.length < 2) { alert("Аты немесе мәтін кемінде 2 таңба!"); return false; }
+        if (!/^\+7\d{10}$/.test(t)) { alert("Тел қате! Формат: +77011112233 (12 таңба)"); return false; }
+        if (!e.includes('@') || !e.includes('.')) { alert("Email қате! (@ және . болуы шарт)"); return false; }
         return true;
     }
 
@@ -82,38 +79,33 @@
         const search = document.getElementById('search').value.toLowerCase();
         const bounds = map.getBounds();
 
-        rawData.forEach((i, idx) => {
+        rawData.forEach(i => {
             const isOwner = i.token === myToken;
             
             // 4-талап: VIP тек админнен соң (иесіне әрқашан көрінеді)
             if (i.is_vip && !i.is_active && !isOwner) return;
             // 3-талап: Тегін тек иесі онлайн болса көрінеді
             if (!i.is_vip && !i.is_online && !isOwner) return;
-            // 7-талап: Сұрыптаусыз еркін іздеу
+            // 7-талап: Сұрағанда бар болса шығуы (еркін іздеу)
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
-            // Өрмекші торы: Қабаттасқан маркерлерді нақты орыннан алыс кетпейтіндей жаю
-            const angle = (idx / 5) * Math.PI * 2;
-            const radius = 0.00015; 
-            const lat = parseFloat(i.lat) + (Math.sin(angle) * radius);
-            const lon = parseFloat(i.lon) + (Math.cos(angle) * radius);
-
-            // 5-талап: Мини ақпарат (әрқашан маркер үстінде)
+            // Мини ақпарат маркері (5-талап)
             const icon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div class="mini-label" style="border-left: 4px solid ${i.is_vip?'gold':'#007bff'}">${i.job.substring(0,12)}..</div>`,
+                html: `<div class="mini-label" style="border-color:${i.is_vip?'gold':'blue'}">${i.job.substring(0,15)}..</div>`,
                 iconSize: [80, 20], iconAnchor: [40, 0]
             });
 
-            const m = L.marker([lat, lon], {icon: icon}).addTo(map);
+            // Нақты координата (ешқандай жылжытусыз)
+            const m = L.marker([i.lat, i.lon], {icon: icon}).addTo(map);
             m.bindPopup(`<b>${i.name}</b><br>${i.job}<br>📞 ${i.tel}<br>📧 ${i.email}`);
             markers.push(m);
 
-            // 6-талап: Жақын маңда (тек картадағы көрінетін аумақ)
-            if (bounds.contains([lat, lon])) {
+            // 6-талап: Жақын маңда тізімі
+            if (bounds.contains([i.lat, i.lon])) {
                 count++;
                 listH += `<div class="card ${i.is_vip?'vip':''}">
-                    ${isOwner?`<button onclick="deleteAd(${i.id})" class="del-btn">Өшіру</button>`:''}
+                    ${isOwner ? `<button onclick="deleteAd(${i.id})" class="del-btn">Өшіру</button>` : ''}
                     <b>${i.job}</b> <br> <small>📞 ${i.tel}</small> ${i.is_online?'🟢':'⚪'}
                 </div>`;
             }
@@ -124,7 +116,7 @@
 
     async function saveAd(isVip) {
         if (!checkValid()) return;
-        if (isVip && !confirm("VIP ақылы. Төлем туралы админге өтінім жіберілсін бе?")) return;
+        if (isVip && !confirm("VIP жариялау ақылы. Админге төлем туралы өтінім жіберілсін бе?")) return;
 
         navigator.geolocation.getCurrentPosition(async (p) => {
             const body = {
@@ -137,26 +129,25 @@
                 is_vip: isVip, token: myToken
             };
             await fetch(API + '/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-            alert(isVip ? "VIP күтуде. Админ мақұлдаған соң шығады." : "Тегін хабарлама жарияланды!");
+            alert(isVip ? "VIP админге жіберілді!" : "Тегін хабарлама қосылды!");
             load();
-        }, () => alert("GPS рұқсатын беріңіз!"));
+        }, () => alert("GPS қосыңыз!"));
     }
 
     async function load() {
         const r = await fetch(API + '/ads');
         rawData = await r.json();
         render();
-        // 5-талап: Админ панельдегі толық ақпарат
+        // 5-талап: Админ панель
         if (location.hash === "#admin777") {
             document.getElementById('adminPanel').style.display='block';
-            let h = `<table border="1" style="width:100%; border-collapse:collapse; font-size:12px;">
-                <tr style="background:#eee;"><th>Уақыт</th><th>Ақпарат</th><th>VIP</th><th>Әрекет</th></tr>`;
+            let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Уақыт</th><th>Ақпарат</th><th>VIP</th><th>Әрекет</th></tr>`;
             rawData.forEach(i => {
                 h += `<tr>
                     <td>${new Date(i.created_at).toLocaleString()}</td>
-                    <td>${i.name}<br>${i.tel}<br>${i.job}</td>
-                    <td>${i.is_vip?'💎':''}</td>
-                    <td><button onclick="admAct(${i.id},${!i.is_active})">${i.is_active?'Өшіру':'Қосу'}</button></td>
+                    <td>${i.job}<br>${i.tel}</td>
+                    <td>${i.is_vip?'Иә':'Жоқ'}</td>
+                    <td><button onclick=\"admAct(${i.id},${!i.is_active})\">${i.is_active?'Өшіру':'Қосу'}</button></td>
                 </tr>`;
             });
             document.getElementById('admin-table').innerHTML = h + `</table>`;
