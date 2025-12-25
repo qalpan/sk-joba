@@ -31,7 +31,7 @@ app.post('/ping', (req, res) => {
 
 app.post('/save', async (req, res) => {
     const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
-    const active = !is_vip; // VIP болса активті емес, тегін болса бірден активті
+    const active = !is_vip; // VIP болса админ қоспайынша көрінбейді
     await pool.query(
         'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
         [name, job, type, contacts, lat, lon, is_vip, active, token]
@@ -48,8 +48,13 @@ app.get('/get-all', async (req, res) => {
             WHERE created_at > NOW() - INTERVAL '24 hours' 
             ORDER BY is_vip DESC, created_at DESC
         `);
-        res.json(r.rows.map(row => ({ ...row, last_ping: onlineStatus[row.token] || 0 })));
-    } catch(e) { res.status(500).send(e.message); }
+        // Онлайн статусты қосу
+        const results = r.rows.map(row => ({
+            ...row,
+            last_ping: onlineStatus[row.token] || 0
+        }));
+        res.json(results);
+    } catch(e) { res.status(500).json({error: e.message}); }
 });
 
 // ... басқа роуттар өзгеріссіз қала береді ...
