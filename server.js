@@ -42,13 +42,29 @@ app.post('/save', async (req, res) => {
     } catch(e) { res.status(500).json({error: e.message}); }
 });
 
+// ... бұрынғы импорттар мен pool конфигурациясы ...
+
 app.get('/get-all', async (req, res) => {
     try {
-        // Тек соңғы 24 сағаттағы деректерді тарту
-        const r = await pool.query("SELECT * FROM markers_new WHERE created_at > NOW() - INTERVAL '24 hours' ORDER BY is_vip DESC, created_at DESC");
-        res.json(r.rows.map(row => ({ ...row, last_ping: onlineStatus[row.token] || 0 })));
-    } catch(e) { res.status(500).send(e.message); }
+        // SQL: Тек соңғы 24 сағаттағы деректерді тарту
+        const r = await pool.query(`
+            SELECT * FROM markers_new 
+            WHERE created_at > NOW() - INTERVAL '24 hours' 
+            ORDER BY is_vip DESC, created_at DESC
+        `);
+        
+        const results = r.rows.map(row => ({
+            ...row,
+            last_ping: onlineStatus[row.token] || 0
+        }));
+        
+        res.json(results);
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
 });
+
+// ... басқа роуттар өзгеріссіз қала береді ...
 
 app.post('/delete', async (req, res) => {
     await pool.query('DELETE FROM markers_new WHERE id = $1 AND (token = $2 OR $2 = $3)', [req.body.id, req.body.token, 'admin777']);
