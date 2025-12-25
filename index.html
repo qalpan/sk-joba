@@ -231,19 +231,26 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     let myToken = localStorage.getItem('token') || (Math.random().toString(36).substr(2) + Date.now().toString(36));
     localStorage.setItem('token', myToken);
 
+    // Админ режимі (Сілтеме соңына #admin777 деп жазсаңыз қосылады)
     let isAdmin = location.hash === "#admin777";
 
-    // 1. КАРТАНЫ БАСТАУ (Стильдер мен батырмалар бұрынғы қалпында)
+    // 1. КАРТАНЫ БАСТАУ
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     
+    // Скриншоттағы батырмаларға арналған стильдер
     const colorLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
     const grayLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    const baseMaps = {
-        "Ақ-қара": grayLayer,
-        "Түрлі-түсті": colorLayer
-    };
-    L.control.layers(baseMaps).addTo(map); // Оң жақ үстіндегі бұрынғы батырмалар
+    // БАТЫРМАЛАР ІСТЕУ ҮШІН ФУНКЦИЯ (changeMapStyle)
+    function changeMapStyle(style) {
+        if (style === 'color') {
+            map.removeLayer(grayLayer);
+            colorLayer.addTo(map);
+        } else {
+            map.removeLayer(colorLayer);
+            grayLayer.addTo(map);
+        }
+    }
 
     const markersGroup = L.markerClusterGroup({ maxClusterRadius: 35 });
     map.addLayer(markersGroup);
@@ -255,7 +262,6 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             .then(r => r.json())
             .then(data => {
                 const newData = [];
-                // UID арқылы дубликаттарды жою
                 if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w'+x.id}));
                 if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g'+x.id}));
                 if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o'+x.id}));
@@ -278,6 +284,8 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         const listId = type === 'worker' ? 'w_contacts_list' : (type === 'good' ? 'g_contacts_list' : 'o_contacts_list');
         const rows = document.getElementById(listId).querySelectorAll('.contact-row');
 
+        if (rows.length === 0) { alert("Байланыс түрін қосыңыз!"); return false; }
+
         rows.forEach(r => {
             const t = r.querySelector('.c-type').value; 
             const val = r.querySelector('.c-val').value.trim();
@@ -288,13 +296,17 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 }
             }
             if (t === 'Email' && (!val.includes('@') || !val.includes('.'))) { alert("Email қате!"); isValid = false; return; }
-            if (t === 'Teams' && !val.toLowerCase().includes('teams.microsoft.com')) { alert("Teams қате!"); isValid = false; return; }
+            if (t === 'Teams' && !val.toLowerCase().includes('teams.microsoft.com')) { alert("Teams сілтемесі қате!"); isValid = false; return; }
             contacts.push({type: t, val: val});
         });
         return isValid ? JSON.stringify(contacts) : false;
     }
 
-    // 4. VIP ЖАРИЯЛАУ (Тек расталған соң шығады)
+    // 4. ЖАРИЯЛАУ ФУНКЦИЯЛАРЫ (saveItem)
+    function saveItem(type) {
+        processPost(type, false);
+    }
+
     function initVIP(type) {
         if (confirm("💎 VIP ЖАРИЯЛАУ (490₸)\nKaspi: +7 701 739 83 09\nТөлем жасасаңыз 'ОК' басыңыз.")) {
             processPost(type, true);
@@ -310,7 +322,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 device_token: myToken, is_vip: isVip,
                 lat: pos.coords.latitude, lon: pos.coords.longitude,
                 contacts: contactJson,
-                is_active: !isVip // VIP болса бірден көрінбейді (active: false)
+                is_active: !isVip // VIP-тер админ растағанша (false) көрінбейді
             };
             if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
             if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
@@ -322,7 +334,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 alert(isVip ? "Төлем растауға жіберілді! Админ мақұлдаған соң шығады." : "Жарияланды!"); 
                 loadMarkers(); 
             });
-        }, null, { enableHighAccuracy: true });
+        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
     }
 
     // 5. КАРТАҒА ШЫҒАРУ
@@ -336,8 +348,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             processed.add(i.uid);
 
             const isOwner = (i.device_token && i.device_token.includes(myToken));
-            
-            // Тек расталғандарды немесе Админ/Иесіне ғана расталмағанды көрсету
+            // VIP ТЕКСЕРУ: Төлем расталмаса тек Админ мен Иесі көреді
             if (i.is_vip && !i.is_active && !isAdmin && !isOwner) return;
 
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
@@ -363,17 +374,28 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         });
     }
 
+    // 6. БАСҚА ФУНКЦИЯЛАР
     function activateVip(id, type) {
         fetch(API + '/admin/toggle-active', { 
             method: 'POST', headers: {'Content-Type': 'application/json'}, 
             body: JSON.stringify({ id, type, active: true }) 
-        }).then(() => { alert("VIP Расталды!"); loadMarkers(); });
+        }).then(() => { alert("Расталды!"); loadMarkers(); });
     }
 
     function deleteItem(id, type) {
         if(!confirm("Өшіруді растайсыз ба?")) return;
         fetch(API + '/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, type, token: isAdmin ? "admin777" : myToken }) })
         .then(() => loadMarkers());
+    }
+
+    function addContactRow(id) {
+        const div = document.createElement('div');
+        div.className = 'contact-row';
+        div.style.display = 'flex'; div.style.marginBottom = '5px';
+        div.innerHTML = `<select class="c-type" style="width:30%"><option>Тел</option><option>Skype</option><option>Teams</option><option>Email</option></select>
+            <input class="c-val" style="width:60%" placeholder="+7...">
+            <button onclick="this.parentElement.remove()" style="width:10%">×</button>`;
+        document.getElementById(id).appendChild(div);
     }
 
     function formatContacts(jsonStr) {
