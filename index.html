@@ -8,22 +8,25 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <style>
-        :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; }
+        :root { --primary: #007bff; --success: #28a745; --warning: #ffc107; --danger: #dc3545; }
         body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
         .header-box { position: sticky; top: 0; z-index: 1000; text-align: center; padding: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .search-input { width: 90%; padding: 12px; border-radius: 25px; border: 2px solid var(--primary); outline: none; font-size: 16px; }
         #map { height: 45vh; width: 100%; border-bottom: 3px solid var(--primary); }
-        #visible-list-container { background: white; margin: 10px; border-radius: 12px; height: 25vh; overflow-y: auto; }
-        .card { background: white; padding: 15px; border-radius: 10px; margin: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, textarea, button, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { color: white; border: none; font-weight: bold; cursor: pointer; }
+        .contact-badge { display: block; background: #e9ecef; border-radius: 4px; padding: 4px 8px; font-size: 13px; margin-top: 4px; border-left: 3px solid var(--primary); }
+        .card { background: white; padding: 15px; border-radius: 10px; margin: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 5px; }
+        button { cursor: pointer; border: none; font-weight: bold; transition: 0.3s; }
+        .admin-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; padding:20px; overflow-y:auto; }
+        .online-dot { border: 3px solid #00ff00 !important; }
         .contact-row { display: flex; gap: 5px; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="header-box">
-    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Іздеу..." oninput="filterMarkers()">
+    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Іздеу (Мамандық, тауар...)" oninput="filterMarkers()">
+    <button onclick="checkAdmin()" style="background:none; color:#ccc; font-size:10px; position:absolute; right:5px; top:5px;">Admin</button>
 </div>
 
 <div id="map"></div>
@@ -33,21 +36,31 @@
     <div id="dynamic-list-content"></div>
 </div>
 
-<div class="container">
-    <div class="card" style="border-top: 5px solid var(--primary);">
-        <h4>👷 Қызмет жариялау</h4>
-        <input id="w_name" placeholder="Атыңыз">
-        <input id="w_job" placeholder="Мамандық">
-        <div id="w_contacts_list">
-            <div class="contact-row">
-                <select style="width:35%" class="c-type"><option>Тел</option><option>WhatsApp</option></select>
-                <input style="width:65%" class="c-val" placeholder="8707...">
-            </div>
+<div class="card" style="border-top: 5px solid var(--primary);">
+    <h4>👷 Қызмет жариялау</h4>
+    <input id="w_name" placeholder="Атыңыз">
+    <input id="w_job" placeholder="Мамандығыңыз (мысалы: Сантехник)">
+    <div id="w_contacts_list">
+        <div class="contact-row">
+            <select style="width:35%" class="c-type">
+                <option>Тел</option><option>Email</option><option>WhatsApp</option><option>Skype</option><option>Teams</option>
+            </select>
+            <input style="width:65%" class="c-val" placeholder="Дерек">
         </div>
-        <button type="button" onclick="addContactRow('w_contacts_list')" style="background:#6c757d; width:auto; font-size:12px;">+ Байланыс қосу</button>
-        <button onclick="processPost('worker', false)" style="background:var(--primary); margin-top:10px;">Тегін жариялау</button>
-        <button onclick="initVIP('worker')" style="background:#0056b3">💎 VIP жариялау</button>
     </div>
+    <button onclick="addContactRow('w_contacts_list')" style="background:#6c757d; color:white; margin-top:5px; padding:5px; width:auto;">+ Байланыс</button>
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button onclick="processPost('worker', false)" style="background:var(--success); color:white; flex:1; padding:12px;">Тегін жариялау</button>
+        <button onclick="processPost('worker', true)" style="background:var(--primary); color:white; flex:1; padding:12px;">💎 VIP (1000 ₸)</button>
+    </div>
+</div>
+
+<div id="adminPanel" class="admin-modal">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>🛡 Басқару панелі</h3>
+        <button onclick="document.getElementById('adminPanel').style.display='none'" style="background:var(--danger); color:white; padding:10px;">Жабу</button>
+    </div>
+    <div id="admin-list"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -57,7 +70,7 @@
     const API = "https://sk-joba.onrender.com"; 
     let myToken = localStorage.getItem('token') || (Math.random().toString(36).substr(2) + Date.now().toString(36));
     localStorage.setItem('token', myToken);
-    let isAdmin = location.hash === "#admin777";
+    let isAdmin = false;
 
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -65,81 +78,152 @@
     map.addLayer(markersGroup);
     let rawData = [];
 
+    // 1. ВАЛИДАЦИЯ (ҚАТАҢ ТЕКСЕРУ)
+    function validateInput(type, value) {
+        if (type === 'Тел') {
+            const phoneRegex = /^\+7\d{10}$/; // +77071234567
+            return phoneRegex.test(value.replace(/\s+/g, ''));
+        }
+        if (type === 'Email') {
+            return value.includes('@') && value.includes('.');
+        }
+        return value.length > 2;
+    }
+
+    // 2. БАЙЛАНЫС ДЕРЕКТЕРІН ЖИНАУ
+    function getContacts(listId) {
+        let contacts = [];
+        const rows = document.getElementById(listId).querySelectorAll('.contact-row');
+        for (let r of rows) {
+            const cType = r.querySelector('.c-type').value;
+            const cVal = r.querySelector('.c-val').value.trim();
+            if (!validateInput(cType, cVal)) {
+                alert(`Қате: ${cType} форматы дұрыс емес!`);
+                return null;
+            }
+            contacts.push({type: cType, val: cVal});
+        }
+        return contacts.length > 0 ? JSON.stringify(contacts) : null;
+    }
+
+    // 3. ЖАРИЯЛАУ (GPS ПЕН VIP ТЕКСЕРУ)
+    function processPost(type, isVip) {
+        const contactJson = getContacts(type === 'worker' ? 'w_contacts_list' : 'g_contacts_list');
+        if (!contactJson) return;
+
+        if (isVip) {
+            const pay = confirm("VIP жариялау үшін 1000 ₸ төлем жасау қажет. Төлем бетіне өту?");
+            if (!pay) return;
+        }
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            if (!lat || lat === 0) { alert("GPS қате!"); return; }
+
+            const d = { 
+                device_token: myToken, is_vip: isVip, lat, lon, contacts: contactJson,
+                name: document.getElementById('w_name').value, 
+                job: document.getElementById('w_job').value
+            };
+
+            fetch(API + '/save-worker', { 
+                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
+            }).then(() => {
+                alert(isVip ? "Төлем күтілуде... Админ мақұлдаған соң шығады." : "Сәтті жарияланды!");
+                loadMarkers();
+            });
+        }, (err) => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
+    }
+
+    // 4. КАРТАДА ЖӘНЕ ТІЗІМДЕ КӨРСЕТУ
+    function formatContacts(json) {
+        try {
+            const arr = typeof json === 'string' ? JSON.parse(json) : json;
+            return arr.map(c => `<div class="contact-badge"><b>${c.type}:</b> ${c.val}</div>`).join('');
+        } catch(e) { return "Дерек жоқ"; }
+    }
+
     function loadMarkers() {
-        fetch(API + '/get-all')
-            .then(r => r.json())
-            .then(data => {
-                const newData = [];
-                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w'+x.id}));
-                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g'+x.id}));
-                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o'+x.id}));
-                rawData = newData; filterMarkers(); 
-            }).catch(e => console.error("Жүктеу қатесі:", e));
+        fetch(API + '/get-all').then(r => r.json()).then(data => {
+            rawData = data.workers; // Тек жұмысшылар мысалында
+            filterMarkers();
+            if(isAdmin) renderAdminList();
+        });
     }
 
     function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
-        const processedUids = new Set(); 
         const bounds = map.getBounds();
         let listHtml = "", count = 0;
 
         rawData.forEach(i => {
-            if(processedUids.has(i.uid)) return;
-            processedUids.add(i.uid);
+            // VIP болса және актив болмаса - тек админге немесе иесіне көрінеді
+            const isOwner = i.device_token.includes(myToken);
+            if (i.device_token.includes('WAITING_VIP_') && !i.is_active && !isAdmin && !isOwner) return;
 
-            const isOwner = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken);
-            if (i.device_token && i.device_token.includes('WAITING_VIP_') && !i.is_active && !isAdmin && !isOwner) return;
-            if (!i.lat || parseFloat(i.lat) === 0) return;
+            const latLng = [i.lat, i.lon];
+            const isOnline = (Date.now() - (i.last_ping || 0)) < 180000;
+            
+            const m = L.marker(latLng, {
+                icon: L.divIcon({ 
+                    className: '', 
+                    html: `<div style="background:${i.device_token.includes('WAITING_VIP') ? 'gold' : '#007bff'}; width:18px; height:18px; border-radius:50%; border:2px solid ${isOnline ? '#00ff00' : 'white'};"></div>` 
+                })
+            });
 
-            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                const latLng = [parseFloat(i.lat), parseFloat(i.lon)];
-                const m = L.marker(latLng, {
-                    icon: L.divIcon({ html: `<div style="background:${color}; width:20px; height:20px; border-radius:50%; border:2px solid white;"></div>`, className: '' })
-                });
-                m.bindPopup(`<b>${i.info}</b><br>${i.title}`);
-                markersGroup.addLayer(m);
-                if (bounds.contains(latLng)) {
-                    count++;
-                    listHtml += `<div class="list-item"><b>${i.info}</b></div>`;
-                }
+            const content = `<b>${i.job}</b><br><small>${i.name}</small><hr>${formatContacts(i.contacts)}`;
+            m.bindPopup(content);
+            markersGroup.addLayer(m);
+
+            if (bounds.contains(latLng)) {
+                count++;
+                listHtml += `<div class="card"><b>${i.job}</b><br>${formatContacts(i.contacts)}</div>`;
             }
         });
         document.getElementById('item-count').innerText = count;
         document.getElementById('dynamic-list-content').innerHTML = listHtml;
     }
 
-    function processPost(type, isVip) {
-        const contactJson = validateForm(type);
-        if (!contactJson) return;
-        alert("GPS анықталуда...");
-        navigator.geolocation.getCurrentPosition(pos => {
-            const lat = pos.coords.latitude, lon = pos.coords.longitude;
-            if (!lat || lat === 0) { alert("GPS қате!"); return; }
-            const d = { device_token: myToken, is_vip: isVip, lat, lon, contacts: contactJson };
-            if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
-            // ... басқа типтер
-            fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
-                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
-            }).then(() => { alert("Жіберілді!"); loadMarkers(); });
-        }, (err) => alert("GPS рұқсатсыз істемейді."), { enableHighAccuracy: true });
+    // 5. АДМИН ЛОГИКАСЫ
+    function checkAdmin() {
+        const pass = prompt("Құпия сөз:");
+        if (pass === "admin777") {
+            isAdmin = true;
+            document.getElementById('adminPanel').style.display = 'block';
+            loadMarkers();
+        }
     }
 
-    function addContactRow(listId) {
-        const list = document.getElementById(listId);
+    function renderAdminList() {
+        let h = "";
+        rawData.forEach(i => {
+            const date = new Date(i.created_at).toLocaleString('kk-KZ');
+            h += `<div class="card" style="border-left: 5px solid ${i.is_active ? 'green' : 'red'}">
+                <b>${i.job}</b> [${i.name}]<br>
+                ${formatContacts(i.contacts)}
+                <div style="font-size:11px; color:gray;">Уақыты: ${date}</div>
+                <button onclick="toggleActive(${i.id}, ${!i.is_active})" style="background:var(--success); color:white;">${i.is_active ? 'Өшіру' : 'Мақұлдау (VIP)'}</button>
+                <button onclick="deleteItem(${i.id})" style="background:var(--danger); color:white;">Жою</button>
+            </div>`;
+        });
+        document.getElementById('admin-list').innerHTML = h;
+    }
+
+    function toggleActive(id, active) {
+        fetch(API + '/admin/toggle-active', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({id, type:'worker', active})
+        }).then(loadMarkers);
+    }
+
+    function addContactRow(id) {
         const div = document.createElement('div');
         div.className = 'contact-row';
-        div.innerHTML = `<select style="width:35%" class="c-type"><option>Тел</option><option>WhatsApp</option></select><input style="width:65%" class="c-val" placeholder="Дерек">`;
-        list.appendChild(div);
+        div.innerHTML = `<select style="width:35%" class="c-type"><option>Тел</option><option>Email</option><option>WhatsApp</option><option>Skype</option><option>Teams</option></select><input style="width:65%" class="c-val" placeholder="Дерек">`;
+        document.getElementById(id).appendChild(div);
     }
 
-    function validateForm(type) {
-        const name = v(type === 'worker' ? 'w_name' : 'g_name');
-        if (name.length < 2) { alert("Атыңызды жазыңыз!"); return false; }
-        return JSON.stringify([{type:'Тел', val:'8700...'}]); // Мысалы
-    }
-    function v(id){ return document.getElementById(id)?.value.trim() || ""; }
     map.on('moveend', filterMarkers);
     loadMarkers();
 </script>
