@@ -52,10 +52,12 @@ app.get('/ads', async (req, res) => {
 });
 
 // 1 & 4 ТАЛАПТАР: Сақтау (VIP болса админ рұқсатын күтеді)
+// server.js ішіндегі save функциясын осылай өзгертіңіз
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
     
-    // МАҢЫЗДЫ: VIP болса false, тегін болса бірден true (4-талап)
+    // Егер VIP болса (is_vip: true), онда белсенді емес (false) болып түседі.
+    // Тек админ панельден қосылғанда ғана (is_active: true) болады.
     const active = is_vip === true ? false : true; 
 
     try {
