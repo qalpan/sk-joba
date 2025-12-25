@@ -1,14 +1,20 @@
 const express = require('express');
+const cors = require('cors'); // CORS пакеті міндетті
 const { Pool } = require('pg');
-const cors = require('cors');
 const app = express();
+
+// CORS қатесін болдырмау үшін:
+app.use(cors()); 
 app.use(express.json());
-app.use(cors());
 
-const pool = new Pool({ connectionString: "your_postgres_url" });
-let onlineStatus = {};
+const pool = new Pool({
+  connectionString: "СІЗДІҢ_POSTGRES_СІЛТЕМЕҢІЗ", // Мысалы: Render-дегі Internal Database URL
+  ssl: { rejectUnauthorized: false }
+});
 
-// 3 & 4. Деректерді алу (Тек соңғы 24 сағат)
+let onlineStatus = {}; // Пайдаланушылардың онлайн статусы
+
+// 3 & 4. Деректерді алу (Тек 24 сағаттық және VIP логикасы)
 app.get('/ads', async (req, res) => {
     try {
         const r = await pool.query(`
@@ -16,28 +22,35 @@ app.get('/ads', async (req, res) => {
             WHERE created_at > NOW() - INTERVAL '24 hours' 
             ORDER BY is_vip DESC, created_at DESC
         `);
-        const data = r.rows.map(i => ({ ...i, last_ping: onlineStatus[i.token] || 0 }));
+        const data = r.rows.map(i => ({
+            ...i,
+            is_online: (Date.now() - (onlineStatus[i.token] || 0)) < 40000
+        }));
         res.json(data);
-    } catch(e) { res.status(500).send(e.message); }
+    } catch (err) { res.status(500).json(err.message); }
 });
 
-// 4. Сақтау (VIP болса 'is_active: false' болып түседі)
+// 4. Хабарлама сақтау
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
-    const active = !is_vip; // Тегін бірден шығады, VIP админді күтеді
-    await pool.query(
-        'INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-        [name, job, type, tel, email, lat, lon, is_vip, active, token]
-    );
-    res.json({success: true});
+    // VIP болса admin мақұлдағанша active: false болады
+    const active = !is_vip; 
+    try {
+        await pool.query(
+            `INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [name, job, type, tel, email, lat, lon, is_vip, active, token]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json(err.message); }
 });
 
-// 5. Админ басқаруы
+// 5. Админ панель: VIP қосу/жою
 app.post('/admin-toggle', async (req, res) => {
     const { id, active, pass } = req.body;
-    if (pass !== "admin777") return res.status(403).send("Қате пароль");
+    if (pass !== "admin777") return res.status(403).json("Қате пароль");
     await pool.query('UPDATE ads SET is_active = $1 WHERE id = $2', [active, id]);
-    res.json({success: true});
+    res.json({ success: true });
 });
 
 app.post('/ping', (req, res) => {
@@ -45,9 +58,4 @@ app.post('/ping', (req, res) => {
     res.send("ok");
 });
 
-app.post('/del', async (req, res) => {
-    await pool.query('DELETE FROM ads WHERE id = $1 AND token = $2', [req.body.id, req.body.token]);
-    res.send("ok");
-});
-
-app.listen(3000);
+app.listen(process.env.PORT || 3000);
