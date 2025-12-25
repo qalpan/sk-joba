@@ -2,18 +2,19 @@
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
-    <title>Карта Хабарлама</title>
+    <title>Карта Хабарлама - SK Joba</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
         #map { height: 45vh; width: 100%; transition: 0.5s; }
         .grayscale { filter: grayscale(1) brightness(0.8); }
-        .card { border-left: 5px solid #007bff; padding: 10px; margin: 10px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 5px; }
+        .card { border-left: 5px solid #007bff; padding: 10px; margin: 10px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 5px; position: relative; }
         .card.vip { border-left-color: gold; background: #fffef0; }
         .info-full { font-size: 13px; color: #333; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
         #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:1000; padding:20px; overflow:auto; }
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         .btn-post { background: #28a745; color: #fff; border: none; cursor: pointer; }
         .btn-vip { background: gold; color: #000; border: none; cursor: pointer; }
+        .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px 10px; font-size: 11px; cursor: pointer; float: right; width: auto; }
     </style>
 </head>
 <body style="margin:0; background:#f0f2f5; font-family:sans-serif;">
@@ -23,14 +24,14 @@
 <div style="padding:15px;">
     <button onclick="document.getElementById('map').classList.toggle('grayscale')" style="background:#333; color:#fff;">🌓 Түсті / Ақ-қара карта</button>
 
-    <input type="text" id="search" placeholder="🔍 Санат, мамандық немесе тауар..." oninput="render()">
+    <input type="text" id="search" placeholder="🔍 Мамандық немесе тауар сипаттамасы..." oninput="render()">
 
     <h4 style="margin:15px 0 5px 0;">📍 Жақын маңда: (<span id="count">0</span>)</h4>
     <div id="list"></div>
 
     <hr>
 
-    <h4>📢 Жариялау</h4>
+    <h4>📢 Жаңа хабарлама</h4>
     <select id="p_type"><option>Қызмет</option><option>Тауар</option><option>Тапсырыс</option></select>
     <input id="p_name" placeholder="Атыңыз (мин. 2 таңба)">
     <input id="p_job" placeholder="Қандай қызмет немесе тауар?">
@@ -63,20 +64,20 @@
     let rawData = [];
     let markers = [];
 
-    // 1-талап: Стандартты валидация
+    // 1-талап: Стандартты тексерулер
     function checkValid() {
         const n = document.getElementById('p_name').value, 
               j = document.getElementById('p_job').value,
               t = document.getElementById('p_tel').value, 
               e = document.getElementById('p_email').value;
 
-        if (n.length < 2 || j.length < 2) return alert("Атыңыз немесе мамандық кемінде 2 таңба!");
-        if (!/^\+7\d{10}$/.test(t.replace(/\s/g, ""))) return alert("Тел қате! Формат: +77011112233");
-        if (!e.includes('@') || !e.includes('.')) return alert("Email қате!");
+        if (n.length < 2 || j.length < 2) { alert("Атыңыз немесе мәтін кемінде 2 таңба!"); return false; }
+        if (!/^\+7\d{10}$/.test(t.replace(/\s/g, ""))) { alert("Тел қате! Формат: +77011112233"); return false; }
+        if (!e.includes('@') || !e.includes('.')) { alert("Email қате! (@ және . болуы шарт)"); return false; }
         return true;
     }
 
-    // 3, 4, 5, 6-талаптарды өңдеу
+    // 3-4-5-6-7 талаптарды біріктіріп өңдеу
     function render() {
         markers.forEach(m => map.removeLayer(m));
         markers = [];
@@ -87,12 +88,12 @@
         rawData.forEach(i => {
             const isOwner = i.token === myToken;
             
-            // 4-талап: VIP админ рұқсатынсыз басқаға көрінбейді
+            // 4-талап: VIP админсіз басқаға көрінбейді
             if (i.is_vip && !i.is_active && !isOwner) return;
-            
-            // 3-талап: Тегін хабарлама тек иесі онлайн болса көрінеді (иесіне әрқашан көрінеді)
+            // 3-талап: Тегін хабарлама тек иесі онлайн болса көрінеді
             if (!i.is_vip && !i.is_online && !isOwner) return;
 
+            // 7-талап: Іздеу сүзгісі
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
             const lat = i.lat + (Math.random() - 0.5) * 0.0006;
@@ -109,11 +110,12 @@
             m.bindPopup(`<b>${i.job}</b><br>📞 ${i.tel}<br>📧 ${i.email}`);
             markers.push(m);
 
+            // 6-талап: Карта аясындағыларды тізімдеу
             if (bounds.contains([lat, lon])) {
                 count++;
                 listH += `
                 <div class="card ${i.is_vip ? 'vip' : ''}">
-                    ${isOwner ? `<button onclick="deleteAd(${i.id})" style="float:right; background:red; color:white; border:none; border-radius:3px; cursor:pointer;">Өшіру</button>` : ''}
+                    ${isOwner ? `<button onclick="deleteAd(${i.id})" class="del-btn">Өшіру</button>` : ''}
                     <b>${i.job}</b> <small>(${i.type})</small> ${i.is_online ? '🟢' : '⚪'}<br>
                     <small>Иесі: ${i.name}</small>
                     <div class="info-full">📞 ${i.tel} | 📧 ${i.email}</div>
@@ -124,16 +126,42 @@
         document.getElementById('list').innerHTML = listH;
     }
 
+    async function saveAd(isVip) {
+        if (!checkValid()) return;
+        
+        navigator.geolocation.getCurrentPosition(async (p) => {
+            const body = {
+                name: document.getElementById('p_name').value,
+                job: document.getElementById('p_job').value,
+                type: document.getElementById('p_type').value,
+                tel: document.getElementById('p_tel').value,
+                email: document.getElementById('p_email').value,
+                lat: p.coords.latitude,
+                lon: p.coords.longitude,
+                is_vip: isVip,
+                token: myToken
+            };
+
+            await fetch(API + '/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+
+            if (isVip) alert("VIP төлем хабарламасы админге кетті! Төлемнен соң жарияланады.");
+            load();
+        }, () => alert("GPS рұқсат етіңіз!"));
+    }
+
     async function load() {
         try {
             const r = await fetch(API + '/ads');
             rawData = await r.json();
             render();
-            if (typeof checkAdmin === "function") checkAdmin(); // Қатені болдырмау
-        } catch(e) { console.error("Дерек жүктелмеді"); }
+            checkAdmin();
+        } catch(e) { console.error("Желі қатесі"); }
     }
 
-    // Хабарламаны өшіру (Тек иесі үшін)
     async function deleteAd(id) {
         if (!confirm("Өшіруді растайсыз ба?")) return;
         await fetch(API + '/delete', {
@@ -144,16 +172,33 @@
         load();
     }
 
-    // Админ панель функциясы (Логтағы қатені түзетеді)
+    // 5-талап: Админ панель кестесі
     function checkAdmin() {
-        const panel = document.getElementById('adminPanel');
-        if (!panel) return;
         if (location.hash === "#admin777") {
-            panel.style.display = 'block';
-            // Админ кестесін құру...
+            document.getElementById('adminPanel').style.display = 'block';
+            let h = `<table border="1" style="width:100%; text-align:left; border-collapse:collapse;">
+                <tr style="background:#eee;"><th>Уақыт</th><th>Ақпарат</th><th>Статус</th><th>Әрекет</th></tr>`;
+            rawData.forEach(i => {
+                h += `<tr>
+                    <td>${new Date(i.created_at).toLocaleString()}</td>
+                    <td>${i.job} (${i.tel})</td>
+                    <td>${i.is_active ? '✅' : '⏳'}</td>
+                    <td><button onclick="admAct(${i.id},${!i.is_active})" style="width:auto; padding:5px;">${i.is_active?'Өшіру':'Қосу'}</button></td>
+                </tr>`;
+            });
+            document.getElementById('admin-table').innerHTML = h + `</table>`;
         } else {
-            panel.style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'none';
         }
+    }
+
+    async function admAct(id, act) {
+        await fetch(API + '/admin-toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, active: act, pass: "admin777" })
+        });
+        load();
     }
 
     setInterval(() => fetch(API+'/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:myToken})}), 30000);
