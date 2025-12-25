@@ -56,8 +56,8 @@ app.get('/ads', async (req, res) => {
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
     
-    // Егер VIP болса (is_vip: true), онда белсенді емес (false) болып түседі.
-    // Тек админ панельден қосылғанда ғана (is_active: true) болады.
+    // 4-талап: Егер VIP болса, белсенді емес (false) болады. 
+    // Тек админ панельден қолмен қосқанда ғана true болады.
     const active = is_vip === true ? false : true; 
 
     try {
@@ -66,7 +66,10 @@ app.post('/save', async (req, res) => {
             [name, job, type, tel, email, lat, lon, is_vip, active, token]
         );
         res.json({ success: true });
-    } catch (err) { res.status(500).json(err.message); }
+    } catch (err) { 
+        console.error(err);
+        res.status(500).json({ error: "Дерек сақталмады" }); 
+    }
 });
 
 app.post('/delete', async (req, res) => {
