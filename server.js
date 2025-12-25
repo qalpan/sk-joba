@@ -30,23 +30,20 @@ app.post('/ping', (req, res) => {
 });
 
 app.post('/save', async (req, res) => {
-    try {
-        const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
-        // Тегін хабарландыру бірден активті болады
-        const active = !is_vip; 
-        await pool.query(
-            'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-            [name, job, type, contacts, lat, lon, is_vip, active, token]
-        );
-        res.json({success: true});
-    } catch(e) { res.status(500).json({error: e.message}); }
+    const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
+    // VIP хабарландыру админ мақұлдағанша (is_active = false) көрінбейді
+    const active = !is_vip; 
+    await pool.query(
+        'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [name, job, type, contacts, lat, lon, is_vip, active, token]
+    );
+    res.json({success: true});
 });
 
 // ... бұрынғы импорттар мен pool конфигурациясы ...
 
 app.get('/get-all', async (req, res) => {
     try {
-        // SQL: Тек соңғы 24 сағаттағы деректерді тарту
         const r = await pool.query(`
             SELECT * FROM markers_new 
             WHERE created_at > NOW() - INTERVAL '24 hours' 
@@ -60,7 +57,7 @@ app.get('/get-all', async (req, res) => {
         
         res.json(results);
     } catch (e) {
-        res.status(500).send(e.message);
+        res.status(500).json({ error: e.message });
     }
 });
 
