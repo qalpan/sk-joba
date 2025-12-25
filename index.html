@@ -228,168 +228,131 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
 <script>
-    const API = "https://sk-joba.onrender.com"; 
-    
-    // Токенді тексереміз немесе жаңасын құрамыз
+    const API = "https://sk-joba.onrender.com"; // Сервер адресі
+
+    // Токенді аламыз
     let myToken = localStorage.getItem('token');
     if (!myToken) {
         myToken = Math.random().toString(36).substr(2) + Date.now().toString(36);
         localStorage.setItem('token', myToken);
     }
-    console.log("My Token:", myToken); // Тексеру үшін
+    
+    // Админ екенін тексеретін айнымалы
+    let isAdmin = localStorage.getItem('isAdmin') === 'true';
 
-    // 1. КАРТА ЖӘНЕ СТИЛЬДЕР
+    // 1. КАРТА БАПТАУЛАРЫ
     const map = L.map('map').setView([43.2389, 76.8897], 13);
-    const baseLayers = {
-        'color': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        'mono': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
-    };
-    baseLayers.color.addTo(map);
-
-    function changeMapStyle(s) {
-        if(s === 'mono') { map.removeLayer(baseLayers.color); baseLayers.mono.addTo(map); }
-        else { map.removeLayer(baseLayers.mono); baseLayers.color.addTo(map); }
-    }
-
-    const markersGroup = L.markerClusterGroup({ spiderfyOnMaxZoom: true, maxClusterRadius: 40 });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markersGroup = L.markerClusterGroup();
     map.addLayer(markersGroup);
 
     let rawData = [];
-    let adminDataFull = null;
 
-    // 2. ДЕРЕКТЕРДІ ЖҮКТЕУ (Load Markers)
+    // 2. ДЕРЕКТЕРДІ ЖҮКТЕУ
     function loadMarkers() {
         fetch(API + '/get-all')
             .then(r => r.json())
             .then(data => {
-                adminDataFull = data.admin_all;
                 const newData = [];
-                
-                // Барлық деректерді бір массивке жинау және ID беру
-                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w'+x.id}));
-                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g'+x.id}));
-                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o'+x.id}));
+                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
+                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
+                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
                 
                 rawData = newData; 
-                filterMarkers(); // Дерек келген соң бірден картаны жаңарту
+                filterMarkers(); 
             })
-            .catch(err => console.error("Қате:", err));
+            .catch(err => console.error(err));
     }
 
-    // 3. КАРТАНЫ СҮЗУ ЖӘНЕ КӨРСЕТУ (Ең маңызды бөлік)
+    // 3. КАРТАНЫ СҮЗУ (ТҮЗЕТІЛГЕН НҰСҚА)
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         const bounds = map.getBounds(); 
         
-        // А: Картаны толық тазалаймыз
         markersGroup.clearLayers();
-        
         let listHtml = '';
-        const now = Date.now();
         let visibleCount = 0;
-
-        // Б: Дубликаттарды жою (uid арқылы)
-        const uniqueData = [];
-        const seenIds = new Set();
         
-        rawData.forEach(item => {
-            if (!seenIds.has(item.uid)) {
-                seenIds.add(item.uid);
-                uniqueData.push(item);
-            }
-        });
+        // Админ батырмасын қосамыз (жоғары жаққа)
+        const adminBtnText = isAdmin ? "🔓 Админ режими қосулы (Шығу)" : "🔒 Админ кіру";
+        document.getElementById('item-count').innerHTML = `
+            ${visibleCount} 
+            <button onclick="toggleAdmin()" style="margin-left:15px; padding:2px 8px; background:#333; color:white; border:none; border-radius:4px; cursor:pointer;">${adminBtnText}</button>
+        `;
 
-        // В: Маркерлерді салу
-        uniqueData.forEach(i => {
-            // --- VIP ЖӘНЕ ИЕСІН АНЫҚТАУ ЛОГИКАСЫ ---
+        // Егер деректер қайталанса, тек біреуін көрсету үшін ID жинаймыз
+        const processedIds = new Set();
+
+        rawData.forEach(i => {
+            // Бірегей ID жасау (тип + id)
+            const uniqueId = i.type + i.id;
+            if(processedIds.has(uniqueId)) return; // Егер бұл ID картада бар болса, өткізіп жібереміз
+            processedIds.add(uniqueId);
+
+            // Иесін анықтау
             const serverToken = i.device_token || "";
-            // Токен дәл келсе НЕМЕСЕ алдында 'WAITING_VIP_' болса - бұл менің хабарламам
-            const isOwner = (serverToken === myToken) || (serverToken === "WAITING_VIP_" + myToken);
+            // Егер токен сәйкес келсе НЕМЕСЕ Админ болса
+            const isOwner = isAdmin || serverToken.includes(myToken);
             
-            // Онлайн статус (15 минутқа дейін жасыл болып тұрады)
-            const lastPing = i.last_ping ? new Date(i.last_ping).getTime() : 0;
-            const isOnline = (now - lastPing < 900000); 
-
-            // Көрсету шарты: (VIP) немесе (Иесі) немесе (Онлайн)
-            if (i.is_active || isOwner || isOnline) {
+            // Іздеу және көрсету шарты
+            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 
-                // Іздеу сөзіне сәйкестік
-                if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                    
-                    const latLng = L.latLng(i.lat, i.lon);
-                    const isInBounds = bounds.contains(latLng);
-                    
-                    // Түстер
-                    let color = '#28a745'; // Тапсырыс (жасыл)
-                    if (i.type === 'worker') color = '#007bff'; // Қызмет (көк)
-                    if (i.type === 'good') color = '#ffc107'; // Тауар (сары)
-                    
-                    const contactsHtml = formatContacts(i);
-                    
-                    // --- ӨШІРУ БАСПАСЫ (ТЕК ИЕСІНЕ) ---
-                    let delBtn = "";
-                    if (isOwner) {
-                        // VIP болса да, жай болса да, иесіне өшіру батырмасы көрінеді
-                        delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#dc3545; color:white; border:none; padding:8px; border-radius:5px; width:100%; margin-top:8px; cursor:pointer; font-weight:bold;">🗑️ Өшіру</button>`;
-                    }
+                const latLng = L.latLng(i.lat, i.lon);
+                
+                // Түстер
+                let color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+                const isVip = i.is_active;
 
-                    // Маркер құрастыру
-                    const m = L.marker([i.lat, i.lon], {
-                        icon: L.divIcon({ 
-                            html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                    <div style="background:${color}; width:20px; height:20px; border-radius:50%; border:2px solid white; 
-                                        ${i.is_active ? 'box-shadow:0 0 15px gold; border:3px solid gold;' : ''}">
-                                    </div>
-                                    <div class="marker-label" style="background:white; padding:2px 5px; border-radius:3px; border:1px solid #ccc; font-size:11px; margin-top:2px;">
-                                        ${i.info.substring(0,12)}
-                                    </div>
-                                   </div>`,
-                            className: '', iconSize: [50, 50], iconAnchor: [25, 10] 
-                        })
-                    });
+                // Өшіру батырмасының дизайны (кішірейтілген)
+                let delBtn = "";
+                if (isOwner) {
+                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" 
+                              style="background:#dc3545; color:white; border:none; padding:4px 10px; border-radius:4px; margin-top:5px; cursor:pointer; font-size:12px;">
+                              🗑️ Өшіру
+                              </button>`;
+                }
 
-                    // Поп-ап (басқанда шығатын терезе)
-                    m.bindPopup(`
-                        <div style="text-align:center; min-width:180px;">
-                            <b style="font-size:15px;">${i.info}</b><br>
-                            <span style="color:gray; font-size:12px;">${i.title}</span>
-                            ${i.is_active ? '<br><span style="background:gold; padding:2px 5px; font-size:10px; border-radius:3px;">⭐ VIP</span>' : ''}
-                            <hr style="margin:8px 0; border:0; border-top:1px solid #eee;">
-                            <div style="text-align:left; font-size:13px;">${contactsHtml}</div>
-                            ${delBtn}
-                        </div>
-                    `);
-                    markersGroup.addLayer(m);
+                // Маркер
+                const m = L.marker([i.lat, i.lon], {
+                    icon: L.divIcon({ 
+                        html: `<div style="background:${color}; width:15px; height:15px; border-radius:50%; border:2px solid white; ${isVip ? 'box-shadow:0 0 10px gold; border-color:gold;' : ''}"></div>`,
+                        className: ''
+                    })
+                });
 
-                    // Тізімге қосу (тек экранға сыйып тұрғандар)
-                    if (isInBounds) {
-                        visibleCount++;
-                        listHtml += `
-                            <div class="list-item" style="${i.is_active ? 'border-left:5px solid gold; background:#fffdf0;' : 'border-left:5px solid '+color+';'} padding:10px; border-bottom:1px solid #eee;">
-                                <div style="display:flex; justify-content:space-between;">
-                                    <div>
-                                        <b>${i.info}</b> <br>
-                                        <small>${i.title}</small>
-                                        ${isOwner ? '<br><small style="color:green;">(Сіздің хабарламаңыз)</small>' : ''}
-                                    </div>
-                                    <div style="text-align:right; font-size:12px;">${contactsHtml}</div>
-                                </div>
-                                ${isOwner ? delBtn : ''}
-                            </div>`;
-                    }
+                m.bindPopup(`
+                    <div style="text-align:center;">
+                        <b>${i.info}</b><br>${i.title}
+                        <br>${delBtn}
+                    </div>
+                `);
+                markersGroup.addLayer(m);
+
+                // Тізімге қосу
+                if (bounds.contains(latLng)) {
+                    visibleCount++;
+                    listHtml += `
+                        <div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <b>${i.info}</b> <br> <small>${i.title}</small>
+                                ${isVip ? '<span style="background:gold; font-size:10px; padding:0 3px;">VIP</span>' : ''}
+                            </div>
+                            <div>${delBtn}</div>
+                        </div>`;
                 }
             }
         });
         
-        document.getElementById('item-count').innerText = visibleCount;
-        document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:20px; text-align:center; color:#999;">Бұл аумақта ештеңе жоқ</div>';
+        // Санауышты жаңарту
+        const countSpan = document.getElementById('item-count');
+        if(countSpan) countSpan.innerHTML = `${visibleCount} <button onclick="toggleAdmin()" style="margin-left:15px; font-size:11px;">${isAdmin ? '🔓 Шығу' : '🔒 Админ'}</button>`;
+        
+        document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:20px; text-align:center;">Бос</div>';
     }
 
-    // 4. САҚТАУ ФУНКЦИЯСЫ
+    // 4. САҚТАУ
     function saveItem(type, isVip) {
-        if (isVip) {
-            if(!confirm("💎 VIP статус (490₸)\n\nАдмин төлемді тексерген соң хабарламаңыз 24 сағат картада тұрады.\n\nЖалғастырасыз ба?")) return;
-        }
+        if (isVip && !confirm("VIP статус (490тг). Келісесіз бе?")) return;
 
         navigator.geolocation.getCurrentPosition(pos => {
             let d = { 
@@ -399,6 +362,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 lon: pos.coords.longitude 
             };
             
+            // Формадан дерек алу
             if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
             if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
             if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
@@ -410,116 +374,74 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 headers:{'Content-Type':'application/json'}, 
                 body:JSON.stringify(d) 
             }).then(() => {
-                alert("Жіберілді!");
-                loadMarkers(); // Сақтаған соң бірден жаңарту
-            }).catch(e => alert("Қате кетті: " + e));
+                alert("Сақталды!");
+                loadMarkers();
+            });
         }, () => alert("GPS қосыңыз!"));
     }
 
-    // 5. ӨШІРУ ФУНКЦИЯСЫ
+    // 5. ӨШІРУ (TOKEN арқылы немесе ADMIN TOKEN арқылы)
     function deleteItem(id, type) {
-        if(confirm("Осы хабарламаны өшіресіз бе?")) {
-            fetch(API + '/delete-item', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ id: id, type: type, token: myToken })
-            }).then(res => res.json()).then(data => {
-                if(data.success) {
-                    alert("Өшірілді!");
-                    loadMarkers();
-                } else {
-                    alert("Өшіру мүмкін емес. Қайта көріңіз.");
-                }
-            });
-        }
+        if(!confirm("Өшіресіз бе?")) return;
+        
+        // Егер Админ режимі болса, 'admin777' токенін жібереміз, әйтпесе өз токенімізді
+        const tokenToSend = isAdmin ? 'admin777' : myToken;
+
+        fetch(API + '/delete-item', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: id, type: type, token: tokenToSend })
+        }).then(res => res.json()).then(data => {
+            if(data.success) {
+                alert("Өшірілді!");
+                loadMarkers();
+            } else {
+                alert("Өшіре алмадым. Бұл сіздікі емес шығар?");
+            }
+        });
     }
 
-    // КӨМЕКШІ ФУНКЦИЯЛАР
+    // АДМИН КІРУ ФУНКЦИЯСЫ
+    function toggleAdmin() {
+        if(isAdmin) {
+            isAdmin = false;
+            localStorage.setItem('isAdmin', 'false');
+            alert("Админ режим өшірілді");
+        } else {
+            const pass = prompt("Админ құпиясөзі:");
+            if(pass === 'admin777') {
+                isAdmin = true;
+                localStorage.setItem('isAdmin', 'true');
+                alert("Админ режим қосылды! Енді барлығын өшіре аласыз.");
+            } else {
+                alert("Қате!");
+            }
+        }
+        filterMarkers(); // Картаны жаңарту
+    }
+
+    // КӨМЕКШІЛЕР
     function v(id){ return document.getElementById(id).value; }
     
     function collectContacts(id) {
         let c = []; 
         document.getElementById(id).querySelectorAll('.contact-row').forEach(r => {
-            let t = r.querySelector('.c-type').value; 
             let v = r.querySelector('.c-val').value;
-            if(v) c.push({type:t, val:v});
+            if(v) c.push({type:'Tel', val:v});
         }); 
         return JSON.stringify(c);
     }
     
-    function formatContacts(item) {
-        let h = '';
-        try {
-            const arr = typeof item.contacts === 'string' ? JSON.parse(item.contacts || '[]') : item.contacts;
-            if(Array.isArray(arr)) {
-                arr.forEach(c => { h += `<div><b>${c.type}:</b> ${c.val}</div>`; });
-            }
-        } catch(e) { return '...'; }
-        return h;
-    }
-    
     function addContactRow(id) {
         const div = document.createElement('div'); div.className = 'contact-row';
-        div.innerHTML = `<select class="c-type" style="width:30%"><option>Тел</option><option>WhatsApp</option></select>
-                         <input class="c-val" style="width:50%" placeholder="87..">
-                         <button onclick="this.parentElement.remove()" style="width:15%; background:#ddd; color:black;">x</button>`;
+        div.innerHTML = `<input class="c-val" placeholder="87.."><button onclick="this.parentElement.remove()">x</button>`;
         document.getElementById(id).appendChild(div);
     }
-    
-    // АДМИН ПАНЕЛЬДІ ШАҚЫРУ
-    function initVIP(type) { saveItem(type, true); }
-    window.onhashchange = () => { if(location.hash === '#admin777' && prompt("Pass:") === 'admin777') renderAdmin(); else document.getElementById('admin-modal').style.display='none'; };
 
-    // --- АДМИН ФУНКЦИЯЛАРЫ ---
-    function renderAdmin() {
-        if(!adminDataFull) return;
-        const modal = document.getElementById('admin-modal');
-        modal.style.display = 'block';
-        let h = '<button onclick="location.hash=\'\'" style="background:red; width:100%; margin-bottom:10px;">Жабу</button>';
-        
-        ['workers', 'goods', 'orders'].forEach(cat => {
-            h += `<h3>${cat.toUpperCase()}</h3>`;
-            adminDataFull[cat].forEach(i => {
-                h += `<div style="border:1px solid #ccc; padding:5px; margin-bottom:5px; background:${i.is_active?'#eaffea':'white'}">
-                        <b>ID: ${i.id}</b> | ${i.name || ''} <br>
-                        ${i.job || i.product_name || i.description}
-                        <br>
-                        <button onclick="toggleActive(${i.id}, '${cat.slice(0,-1)}', ${!i.is_active})">
-                            ${i.is_active ? 'VIP Өшіру' : 'VIP Қосу'}
-                        </button>
-                        <button onclick="admDel(${i.id}, '${cat.slice(0,-1)}')" style="background:red; color:white;">Жою</button>
-                      </div>`;
-            });
-        });
-        document.getElementById('admin-content').innerHTML = h;
-    }
-
-    function toggleActive(id, type, val) {
-        fetch(API+'/admin/toggle-active', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id,type,active:val})})
-        .then(() => { loadMarkers(); setTimeout(renderAdmin, 500); });
-    }
-    function admDel(id, type) {
-        if(confirm("Админ: өшіресіз бе?")) {
-            fetch(API+'/delete-item', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id,type,token:'admin777'})})
-            .then(() => { loadMarkers(); setTimeout(renderAdmin, 500); });
-        }
-    }
-
-    // ІСКЕ ҚОСУ
+    // БАСТАУ
     map.on('moveend', filterMarkers);
     loadMarkers();
-    
-    // Серверге "Мен онлайнмын" деп хабарлап тұру (әр 20 секунд)
-    setInterval(() => { 
-        fetch(API + '/user-ping', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ token: myToken }) 
-        }).catch(()=>{}); 
-        
-        // Картаны да жаңартып тұру
-        loadMarkers();
-    }, 20000);
+    setInterval(loadMarkers, 15000); // 15 секунд сайын жаңарту
 
 </script>
 </body>
