@@ -2,73 +2,52 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const app = express();
-
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
-
+const pool = new Pool({ connectionString: "your_postgres_url" });
 let onlineStatus = {};
 
-// Кестені инициализациялау
-pool.query(`
-    CREATE TABLE IF NOT EXISTS markers_new (
-        id SERIAL PRIMARY KEY,
-        name TEXT, job TEXT, type TEXT, contacts JSONB,
-        lat DOUBLE PRECISION, lon DOUBLE PRECISION,
-        is_vip BOOLEAN DEFAULT FALSE, is_active BOOLEAN DEFAULT FALSE,
-        token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-`);
-
-app.post('/ping', (req, res) => {
-    if (req.body.token) onlineStatus[req.body.token] = Date.now();
-    res.json({success: true});
+// 3 & 4. Деректерді алу (Тек соңғы 24 сағат)
+app.get('/ads', async (req, res) => {
+    try {
+        const r = await pool.query(`
+            SELECT * FROM ads 
+            WHERE created_at > NOW() - INTERVAL '24 hours' 
+            ORDER BY is_vip DESC, created_at DESC
+        `);
+        const data = r.rows.map(i => ({ ...i, last_ping: onlineStatus[i.token] || 0 }));
+        res.json(data);
+    } catch(e) { res.status(500).send(e.message); }
 });
 
+// 4. Сақтау (VIP болса 'is_active: false' болып түседі)
 app.post('/save', async (req, res) => {
-    const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
-    const active = !is_vip; // VIP болса админ қоспайынша көрінбейді
+    const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
+    const active = !is_vip; // Тегін бірден шығады, VIP админді күтеді
     await pool.query(
-        'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [name, job, type, contacts, lat, lon, is_vip, active, token]
+        'INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [name, job, type, tel, email, lat, lon, is_vip, active, token]
     );
     res.json({success: true});
 });
 
-// ... бұрынғы импорттар мен pool конфигурациясы ...
-
-app.get('/get-all', async (req, res) => {
-    try {
-        const r = await pool.query(`
-            SELECT * FROM markers_new 
-            WHERE created_at > NOW() - INTERVAL '24 hours' 
-            ORDER BY is_vip DESC, created_at DESC
-        `);
-        // Онлайн статусты қосу
-        const results = r.rows.map(row => ({
-            ...row,
-            last_ping: onlineStatus[row.token] || 0
-        }));
-        res.json(results);
-    } catch(e) { res.status(500).json({error: e.message}); }
-});
-
-// ... басқа роуттар өзгеріссіз қала береді ...
-
-app.post('/delete', async (req, res) => {
-    await pool.query('DELETE FROM markers_new WHERE id = $1 AND (token = $2 OR $2 = $3)', [req.body.id, req.body.token, 'admin777']);
+// 5. Админ басқаруы
+app.post('/admin-toggle', async (req, res) => {
+    const { id, active, pass } = req.body;
+    if (pass !== "admin777") return res.status(403).send("Қате пароль");
+    await pool.query('UPDATE ads SET is_active = $1 WHERE id = $2', [active, id]);
     res.json({success: true});
 });
 
-app.post('/admin-toggle', async (req, res) => {
-    if (req.body.pass === "admin777") {
-        await pool.query('UPDATE markers_new SET is_active = $1 WHERE id = $2', [req.body.active, req.body.id]);
-        res.json({success: true});
-    } else { res.status(403).send("Denied"); }
+app.post('/ping', (req, res) => {
+    onlineStatus[req.body.token] = Date.now();
+    res.send("ok");
 });
 
-app.listen(process.env.PORT || 10000);
+app.post('/del', async (req, res) => {
+    await pool.query('DELETE FROM ads WHERE id = $1 AND token = $2', [req.body.id, req.body.token]);
+    res.send("ok");
+});
+
+app.listen(3000);
