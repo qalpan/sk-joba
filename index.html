@@ -231,17 +231,14 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     let myToken = localStorage.getItem('token') || (Math.random().toString(36).substr(2) + Date.now().toString(36));
     localStorage.setItem('token', myToken);
 
-    // Админ режимі (Сілтеме соңына #admin777 деп жазсаңыз қосылады)
     let isAdmin = location.hash === "#admin777";
 
     // 1. КАРТАНЫ БАСТАУ
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     
-    // Скриншоттағы батырмаларға арналған стильдер
     const colorLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
     const grayLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // БАТЫРМАЛАР ІСТЕУ ҮШІН ФУНКЦИЯ (changeMapStyle)
     function changeMapStyle(style) {
         if (style === 'color') {
             map.removeLayer(grayLayer);
@@ -302,11 +299,8 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         return isValid ? JSON.stringify(contacts) : false;
     }
 
-    // 4. ЖАРИЯЛАУ ФУНКЦИЯЛАРЫ (saveItem)
-    function saveItem(type) {
-        processPost(type, false);
-    }
-
+    // 4. ЖАРИЯЛАУ
+    function saveItem(type) { processPost(type, false); }
     function initVIP(type) {
         if (confirm("💎 VIP ЖАРИЯЛАУ (490₸)\nKaspi: +7 701 739 83 09\nТөлем жасасаңыз 'ОК' басыңыз.")) {
             processPost(type, true);
@@ -322,7 +316,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 device_token: myToken, is_vip: isVip,
                 lat: pos.coords.latitude, lon: pos.coords.longitude,
                 contacts: contactJson,
-                is_active: !isVip // VIP-тер админ растағанша (false) көрінбейді
+                is_active: !isVip
             };
             if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
             if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
@@ -331,30 +325,33 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
                 method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
             }).then(() => { 
-                alert(isVip ? "Төлем растауға жіберілді! Админ мақұлдаған соң шығады." : "Жарияланды!"); 
+                alert(isVip ? "Төлем растауға жіберілді!" : "Жарияланды!"); 
                 loadMarkers(); 
             });
         }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
     }
 
-    // 5. КАРТАҒА ШЫҒАРУ
+    // 5. КАРТАҒА ШЫҒАРУ ЖӘНЕ "ЖАҚЫН МАҢДА" ТІЗІМІ
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
         const processed = new Set(); 
+        const bounds = map.getBounds(); // Картаның көріну аумағы
+        let listHtml = "";
+        let count = 0;
 
         rawData.forEach(i => {
             if(processed.has(i.uid)) return;
             processed.add(i.uid);
 
             const isOwner = (i.device_token && i.device_token.includes(myToken));
-            // VIP ТЕКСЕРУ: Төлем расталмаса тек Админ мен Иесі көреді
             if (i.is_vip && !i.is_active && !isAdmin && !isOwner) return;
 
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const latLng = [parseFloat(i.lat), parseFloat(i.lon)];
                 
+                // Картаға маркер қосу
                 const m = L.marker(latLng, {
                     icon: L.divIcon({ 
                         html: `<div style="background:${color}; width:20px; height:20px; border-radius:50%; border:2px solid white; ${i.is_active && i.is_vip ? 'box-shadow:0 0 10px gold; border:2px solid gold;' : ''}"></div>`,
@@ -362,16 +359,34 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                     })
                 });
 
-                // Мини ақпарат (әрқашан көрінеді)
                 m.bindTooltip(`<b>${i.info}</b>`, { permanent: true, direction: 'top', offset: [0, -10] });
                 
-                let delBtn = (isAdmin || isOwner) ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; border-radius:4px; width:100%; margin-top:10px; cursor:pointer;">🗑️ Өшіру</button>` : "";
-                let confirmBtn = (isAdmin && !i.is_active) ? `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; width:100%; margin-top:5px; border-radius:4px; cursor:pointer;">✅ VIP Растау</button>` : "";
+                let delBtn = (isAdmin || isOwner) ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; border-radius:4px; padding:5px; cursor:pointer;">🗑️</button>` : "";
+                let confirmBtn = (isAdmin && !i.is_active) ? `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; border-radius:4px; padding:5px; cursor:pointer; margin-left:5px;">✅ VIP Растау</button>` : "";
 
-                m.bindPopup(`<div><b>${i.info}</b><br><small>${i.title}</small><hr>${formatContacts(i.contacts)}${delBtn}${confirmBtn}</div>`);
+                const contacts = formatContacts(i.contacts);
+                m.bindPopup(`<div><b>${i.info}</b><br><small>${i.title}</small><hr>${contacts}${delBtn}${confirmBtn}</div>`);
                 markersGroup.addLayer(m);
+
+                // "ЖАҚЫН МАҢДА" ТІЗІМІНЕ ҚОСУ (Тек картада көрініп тұрса)
+                if (bounds.contains(latLng)) {
+                    count++;
+                    listHtml += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <b style="color:${color}">${i.info}</b><br>
+                            <small>${i.title}</small>
+                            <div style="margin-top:5px;">${contacts}</div>
+                        </div>
+                        <div style="white-space:nowrap;">${delBtn} ${confirmBtn}</div>
+                    </div>`;
+                }
             }
         });
+        
+        // Скриншоттағы "Жақын маңда: (0)" бөлімін жаңарту
+        const listHeader = document.querySelector('h3') || { innerText: "" }; 
+        document.getElementById('item-count').innerText = count; 
+        document.getElementById('dynamic-list-content').innerHTML = listHtml || "<p style='padding:10px;'>Бұл аумақта ештеңе табылған жоқ.</p>";
     }
 
     // 6. БАСҚА ФУНКЦИЯЛАР
@@ -406,8 +421,11 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     }
 
     function v(id){ return document.getElementById(id) ? document.getElementById(id).value.trim() : ""; }
-    window.onhashchange = () => { isAdmin = location.hash === "#admin777"; loadMarkers(); };
+    
+    // Картаны жылжытқанда тізімді жаңарту
     map.on('moveend', filterMarkers);
+
+    window.onhashchange = () => { isAdmin = location.hash === "#admin777"; loadMarkers(); };
     loadMarkers();
 </script>
     
