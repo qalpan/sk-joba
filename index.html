@@ -270,83 +270,109 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         }
     }
 
-    function processPost(type, isVip) {
-        const contactJson = validateForm(type);
-        if (!contactJson) return;
+function processPost(type, isVip) {
+    const contactJson = validateForm(type);
+    if (!contactJson) return; // Егер байланыс деректері бос болса, тоқтайды
 
-        navigator.geolocation.getCurrentPosition(pos => {
-            const lat = pos.coords.latitude;
-            const lon = pos.coords.longitude;
+    // GPS баптаулары (жоғары дәлдік)
+    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
-            if (!lat || lat === 0) { alert("GPS координаты анықталмады!"); return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
 
-            const d = { 
-                device_token: myToken, is_vip: isVip, lat, lon,
-                contacts: contactJson, is_active: !isVip 
-            };
-            if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
-            if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
-            if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); }
+        // Координата 0 немесе дефолтты нүкте болса жібермеу
+        if (!lat || lat === 0 || lat === 43.2389) {
+            alert("GPS нүктесі дұрыс анықталмады. Қайта көріңіз.");
+            return;
+        }
 
-            fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
-                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
-            }).then(() => { alert("Жіберілді!"); loadMarkers(); });
-        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
-    }
+        const d = { 
+            device_token: myToken, is_vip: isVip, lat, lon,
+            contacts: contactJson, is_active: !isVip // VIP болса бірден көрінбейді (false)
+        };
+        
+        // Деректерді жинау
+        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
+        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); }
+
+        fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
+        }).then(() => { 
+            alert(isVip ? "Төлем растауға жіберілді! Админ мақұлдағанда шығады." : "Сәтті жарияланды!"); 
+            loadMarkers(); 
+        });
+    }, (err) => {
+        alert("GPS-ке рұқсат беріңіз немесе интернетті тексеріңіз!");
+    }, options);
+}
 
     // 4. КАРТА ЖӘНЕ "ЖАҚЫН МАҢДА" ТІЗІМІ (АҚПАРАТТЫ ТОЛЫҚ ШЫҒАРУ)
-    function filterMarkers() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        markersGroup.clearLayers();
-        const processedUids = new Set(); 
-        const bounds = map.getBounds();
-        let listHtml = "";
-        let count = 0;
+function filterMarkers() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    markersGroup.clearLayers();
+    const processedUids = new Set(); 
+    const bounds = map.getBounds();
+    let listHtml = "";
+    let count = 0;
 
-        rawData.forEach(i => {
-            if(processedUids.has(i.uid)) return;
-            processedUids.add(i.uid);
+    rawData.forEach(i => {
+        // 1. Дубликаттарды тексеру
+        if(processedUids.has(i.uid)) return;
+        processedUids.add(i.uid);
 
-            const isOwner = (i.device_token === myToken);
-            if (i.is_vip && !i.is_active && !isAdmin && !isOwner) return;
-
-            if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
-                const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
-                const latLng = [parseFloat(i.lat), parseFloat(i.lon)];
-                
-                const m = L.marker(latLng, {
-                    icon: L.divIcon({ 
-                        html: `<div style="background:${color}; width:20px; height:20px; border-radius:50%; border:2px solid white; ${i.is_active && i.is_vip ? 'box-shadow:0 0 10px gold; border:2px solid gold;' : ''}"></div>`,
-                        className: ''
-                    })
-                });
-
-                m.bindTooltip(`<b>${i.info}</b>`, { permanent: true, direction: 'top', offset: [0, -10] });
-                const contactsHtml = formatContacts(i.contacts);
-                
-                let adminBtns = "";
-                if (isAdmin || isOwner) adminBtns += `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; border-radius:4px; padding:5px; cursor:pointer;">🗑️</button>`;
-                if (isAdmin && !i.is_active) adminBtns += `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; border-radius:4px; padding:5px; cursor:pointer; margin-left:5px;">✅ Растау</button>`;
-
-                m.bindPopup(`<div><b>${i.info}</b><br><small>${i.title}</small><hr>${contactsHtml}${adminBtns}</div>`);
-                markersGroup.addLayer(m);
-
-                if (bounds.contains(latLng)) {
-                    count++;
-                    listHtml += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-                        <div>
-                            <b style="color:${color}">${i.info}</b> <small>(${i.title})</small>
-                            <div style="margin-top:5px; font-size:12px; color:#555;">${contactsHtml}</div>
-                        </div>
-                        <div>${adminBtns}</div>
-                    </div>`;
-                }
-            }
-        });
+        // 2. VIP ЖӘНЕ ИЕСІН ТЕКСЕРУ (ОСЫ ЖЕРГЕ ҚОЙЫЛАДЫ)
+        const isOwner = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken);
         
-        document.getElementById('item-count').innerText = count; 
-        document.getElementById('dynamic-list-content').innerHTML = listHtml || "<p style='padding:10px;'>Бұл маңда ештеңе жоқ.</p>";
-    }
+        // Қатаң фильтр: Егер бұл VIP болса, бірақ әлі расталмаса (is_active: false), 
+        // онда оны тек админ немесе жариялаған иесі ғана көре алады.
+        if (i.device_token && i.device_token.startsWith('WAITING_VIP_') && !i.is_active && !isAdmin && !isOwner) {
+            return; 
+        }
+
+        // 3. Іздеу фильтрі және Картаға шығару логикасы
+        if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
+            const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
+            
+            // Егер координаталар қате (0,0) болса, картаға шығармау
+            if (!i.lat || parseFloat(i.lat) === 0) return;
+            
+            const latLng = [parseFloat(i.lat), parseFloat(i.lon)];
+            
+            const m = L.marker(latLng, {
+                icon: L.divIcon({ 
+                    html: `<div style="background:${color}; width:20px; height:20px; border-radius:50%; border:2px solid white; ${i.is_active && i.is_vip ? 'box-shadow:0 0 10px gold; border:2px solid gold;' : ''}"></div>`,
+                    className: ''
+                })
+            });
+
+            m.bindTooltip(`<b>${i.info}</b>`, { permanent: true, direction: 'top', offset: [0, -10] });
+            const contactsHtml = formatContacts(i.contacts);
+            
+            let adminBtns = "";
+            if (isAdmin || isOwner) adminBtns += `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; border-radius:4px; padding:5px; cursor:pointer;">🗑️</button>`;
+            if (isAdmin && !i.is_active) adminBtns += `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; border-radius:4px; padding:5px; cursor:pointer; margin-left:5px;">✅ Растау</button>`;
+
+            m.bindPopup(`<div><b>${i.info}</b><br><small>${i.title}</small><hr>${contactsHtml}${adminBtns}</div>`);
+            markersGroup.addLayer(m);
+
+            if (bounds.contains(latLng)) {
+                count++;
+                listHtml += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+                    <div>
+                        <b style="color:${color}">${i.info}</b> <small>(${i.title})</small>
+                        <div style="margin-top:5px; font-size:12px; color:#555;">${contactsHtml}</div>
+                    </div>
+                    <div>${adminBtns}</div>
+                </div>`;
+            }
+        }
+    });
+    
+    document.getElementById('item-count').innerText = count; 
+    document.getElementById('dynamic-list-content').innerHTML = listHtml || "<p style='padding:10px;'>Бұл маңда ештеңе жоқ.</p>";
+}
 
     // БАЙЛАНЫС АҚПАРАТЫН ҚАЛЫПТАСТЫРУ (Тел, Емаил т.б.)
     function formatContacts(jsonStr) {
