@@ -3,15 +3,16 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const app = express();
 
+// CORS-ты барлық домендер үшін ашу
 app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Render-де Environment Variables-ке қосыңыз
+    connectionString: "СІЗДІҢ_DATABASE_URL_ОСЫНДА", // Render-ден алынған URL
     ssl: { rejectUnauthorized: false }
 });
 
-// Базаның дайындығын тексеру (Міндетті!)
+// КЕСТЕНІ ТЕКСЕРУ ЖӘНЕ ҚҰРУ (Тексеріңіз, барлық бағаналар осында)
 pool.query(`
     CREATE TABLE IF NOT EXISTS ads (
         id SERIAL PRIMARY KEY,
@@ -22,13 +23,13 @@ pool.query(`
         token TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-`).catch(e => console.error("База қатесі:", e));
+`).then(() => console.log("База дайын")).catch(e => console.error(e));
 
 let onlineStatus = {};
 
+// Геттер: Тек соңғы 24 сағаттық деректерді беру
 app.get('/ads', async (req, res) => {
     try {
-        // 3 & 4. Тек 24 сағаттық деректерді алу
         const r = await pool.query("SELECT * FROM ads WHERE created_at > NOW() - INTERVAL '24 hours'");
         const data = r.rows.map(i => ({
             ...i,
@@ -42,7 +43,7 @@ app.get('/ads', async (req, res) => {
 
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
-    // 4-талап: VIP болса админ қоспайынша active: false (көрінбейді)
+    // VIP болса бірден көрінбейді (is_active: false)
     const active = is_vip ? false : true; 
     try {
         await pool.query(
@@ -58,7 +59,7 @@ app.post('/admin-toggle', async (req, res) => {
     if (pass === "admin777") {
         await pool.query("UPDATE ads SET is_active = $1 WHERE id = $2", [active, id]);
         res.json({ success: true });
-    } else { res.status(403).json("Қате!"); }
+    } else { res.status(403).json("Рұқсат жоқ"); }
 });
 
 app.post('/ping', (req, res) => {
