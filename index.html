@@ -63,30 +63,20 @@
     let rawData = [];
     let markers = [];
 
-    // 1 ТАЛАП: Қатаң тексеру (Regex)
+    // 1-талап: Стандартты валидация
     function checkValid() {
         const n = document.getElementById('p_name').value, 
               j = document.getElementById('p_job').value,
               t = document.getElementById('p_tel').value, 
               e = document.getElementById('p_email').value;
 
-        if (n.length < 2 || j.length < 2) return alert("Аты немесе мәтін кемінде 2 таңба!");
-        if (!/^\+7\d{10}$/.test(t.replace(/\s/g, ""))) return alert("Тел қате! Формат: +77011112233 (12 таңба)");
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return alert("Email қате! (@ және . болуы шарт)");
+        if (n.length < 2 || j.length < 2) return alert("Атыңыз немесе мамандық кемінде 2 таңба!");
+        if (!/^\+7\d{10}$/.test(t.replace(/\s/g, ""))) return alert("Тел қате! Формат: +77011112233");
+        if (!e.includes('@') || !e.includes('.')) return alert("Email қате!");
         return true;
     }
 
-    async function load() {
-        try {
-            const r = await fetch(API + '/ads');
-            if (!r.ok) throw new Error("Сервер қатесі (500)");
-            rawData = await r.json();
-            render();
-            checkAdmin();
-        } catch(e) { console.error("Дерек жүктелмеді:", e); }
-    }
-
-    // 5 & 6 ТАЛАПТАР: Толық ақпарат және Жақын маңда
+    // 3, 4, 5, 6-талаптарды өңдеу
     function render() {
         markers.forEach(m => map.removeLayer(m));
         markers = [];
@@ -96,35 +86,37 @@
 
         rawData.forEach(i => {
             const isOwner = i.token === myToken;
-            if (i.is_vip && !i.is_active && !isOwner) return; // 4-талап: VIP админсіз көрінбейді
-            if (!i.is_vip && !i.is_online && !isOwner) return; // 3-талап: Тегін тек онлайн болса
+            
+            // 4-талап: VIP админ рұқсатынсыз басқаға көрінбейді
+            if (i.is_vip && !i.is_active && !isOwner) return;
+            
+            // 3-талап: Тегін хабарлама тек иесі онлайн болса көрінеді (иесіне әрқашан көрінеді)
+            if (!i.is_vip && !i.is_online && !isOwner) return;
 
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
-            // Қабаттасуды болдырмау (Jitter)
             const lat = i.lat + (Math.random() - 0.5) * 0.0006;
             const lon = i.lon + (Math.random() - 0.5) * 0.0006;
 
             const m = L.circleMarker([lat, lon], { 
                 radius: 10, 
-                color: i.is_vip ? 'gold':'blue', 
-                fillColor: i.is_online?'green':'gray', 
-                fillOpacity:0.8 
+                color: i.is_vip ? 'gold' : 'blue', 
+                fillColor: i.is_online ? 'green' : 'gray', 
+                fillOpacity: 0.8 
             }).addTo(map);
 
-            // 5 ТАЛАП: Мини ақпарат (Popup)
+            // 5-талап: Мини ақпарат маркерде
             m.bindPopup(`<b>${i.job}</b><br>📞 ${i.tel}<br>📧 ${i.email}`);
             markers.push(m);
 
             if (bounds.contains([lat, lon])) {
                 count++;
                 listH += `
-                <div class="card ${i.is_vip?'vip':''}">
-                    <b>${i.job}</b> <small>(${i.type})</small> ${i.is_online?'🟢':'⚪'}<br>
+                <div class="card ${i.is_vip ? 'vip' : ''}">
+                    ${isOwner ? `<button onclick="deleteAd(${i.id})" style="float:right; background:red; color:white; border:none; border-radius:3px; cursor:pointer;">Өшіру</button>` : ''}
+                    <b>${i.job}</b> <small>(${i.type})</small> ${i.is_online ? '🟢' : '⚪'}<br>
                     <small>Иесі: ${i.name}</small>
-                    <div class="info-full" style="font-size:12px; background:#f9f9f9; padding:5px; margin-top:5px;">
-                        📞 ${i.tel} <br> 📧 ${i.email}
-                    </div>
+                    <div class="info-full">📞 ${i.tel} | 📧 ${i.email}</div>
                 </div>`;
             }
         });
@@ -132,35 +124,42 @@
         document.getElementById('list').innerHTML = listH;
     }
 
-    // 2 ТАЛАП: Карта түсін ауыстыру
-    function toggleMapMode() {
-        document.getElementById('map').classList.toggle('grayscale');
+    async function load() {
+        try {
+            const r = await fetch(API + '/ads');
+            rawData = await r.json();
+            render();
+            if (typeof checkAdmin === "function") checkAdmin(); // Қатені болдырмау
+        } catch(e) { console.error("Дерек жүктелмеді"); }
     }
 
-    async function saveAd(isVip) {
-        if (!checkValid()) return;
-        navigator.geolocation.getCurrentPosition(async p => {
-            const res = await fetch(API + '/save', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    name: document.getElementById('p_name').value, 
-                    job: document.getElementById('p_job').value,
-                    type: document.getElementById('p_type').value, 
-                    tel: document.getElementById('p_tel').value,
-                    email: document.getElementById('p_email').value, 
-                    is_vip: isVip, 
-                    token: myToken,
-                    lat: p.coords.latitude, 
-                    lon: p.coords.longitude
-                })
-            });
-            if (isVip) alert("VIP төлем хабарламасы админге кетті!");
-            load();
-        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
+    // Хабарламаны өшіру (Тек иесі үшін)
+    async function deleteAd(id) {
+        if (!confirm("Өшіруді растайсыз ба?")) return;
+        await fetch(API + '/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, token: myToken })
+        });
+        load();
     }
 
-    // Басқа функциялар (admAct, checkAdmin, т.б. өзгеріссіз)
+    // Админ панель функциясы (Логтағы қатені түзетеді)
+    function checkAdmin() {
+        const panel = document.getElementById('adminPanel');
+        if (!panel) return;
+        if (location.hash === "#admin777") {
+            panel.style.display = 'block';
+            // Админ кестесін құру...
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    setInterval(() => fetch(API+'/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:myToken})}), 30000);
+    window.onhashchange = checkAdmin;
+    map.on('moveend', render);
+    load();
 </script>
 </body>
 </html>
