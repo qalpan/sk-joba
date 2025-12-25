@@ -252,26 +252,32 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     let adminDataFull = null;
 
 function saveItem(type, isVip) {
-    // 1. VIP болса, бірден ескерту шығару
     if (isVip) {
-        const vipMsg = `💎 VIP ЖАРИЯЛАУ:
-        \n📍 Каспи немесе Халық: 8 707 123 45 67 нөміріне төлеңіз.
-        \n📍 Төлемнен кейін Админ 24 сағатқа картаға ЭРҚАШАН көрінетін етіп қосады.
-        \n\nТөлем жасауға келісесіз бе?`;
-        
-        if(!confirm(vipMsg)) return;
+        const vipInfo = `💎 VIP ЖАРИЯЛАУ (490₸):
+-------------------------------------------
+1. Каспи немесе Халық нөміріне төлеңіз: 8 707 123 45 67
+2. Төлемнен кейін Админ хабарламаңызды мақұлдайды.
+3. Содан соң хабарламаңыз 24 сағат бойы картада ЭРҚАШАН көрінеді!
+
+Төлем жасауға дайынсыз ба?`;
+
+        if(!confirm(vipInfo)) return; // Отмена басса, функция тоқтайды
     }
 
-    let d = { device_token: myToken, is_active: 0, is_vip: isVip };
-    
-    // Мәліметтерді алу
-    if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
-    if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
-    if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
-
-    // 2. Жариялауды бастау
+    // Содан кейін ғана GPS пен деректерді жинау басталады
     navigator.geolocation.getCurrentPosition(pos => {
-        d.lat = pos.coords.latitude; d.lon = pos.coords.longitude;
+        let d = { 
+            device_token: myToken, 
+            is_active: 0, 
+            is_vip: isVip,
+            lat: pos.coords.latitude, 
+            lon: pos.coords.longitude 
+        };
+        
+        if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); d.contacts=collectContacts('w_contacts_list'); }
+        if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); d.contacts=collectContacts('g_contacts_list'); }
+        if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); d.contacts=collectContacts('o_contacts_list'); }
+
         const endpoint = type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order');
         
         fetch(API + endpoint, { 
@@ -279,12 +285,11 @@ function saveItem(type, isVip) {
             headers:{'Content-Type':'application/json'}, 
             body:JSON.stringify(d) 
         }).then(() => {
-            alert(isVip ? "VIP өтінім жіберілді! Админ растауын күтіңіз." : "Лезде жарияланды!");
+            alert(isVip ? "VIP өтінім жіберілді! Админ мақұлдауын күтіңіз." : "Жарияланды!");
             loadMarkers();
         });
-    }, () => alert("GPS қосыңыз!"), {enableHighAccuracy: true});
+    }, () => alert("GPS рұқсат беріңіз!"));
 }
-
 function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
     const bounds = map.getBounds(); 
