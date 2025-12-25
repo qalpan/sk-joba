@@ -128,54 +128,114 @@
     }
 
     // 3. МӘЛІМЕТТЕРДІ КӨРСЕТУ (24 САҒАТ ТЕКСЕРІСІ)
-    function loadData() {
-        fetch(API + '/get-all').then(r => r.json()).then(data => {
-            rawData = data;
+function loadData() {
+    fetch(API + '/get-all')
+        .then(r => r.json())
+        .then(data => {
+            // Егер сервер объект жіберсе, оны массивке айналдыру немесе бос массив қылу
+            rawData = Array.isArray(data) ? data : (data.workers || []); 
             filterMarkers();
-        });
+        })
+        .catch(err => console.error("Дерек жүктеу қатесі:", err));
+}
+
+function filterMarkers() {
+    // 1. rawData-ның массив екенін тексеру (Қатеден қорғау)
+    let dataToProcess = [];
+    if (Array.isArray(rawData)) {
+        dataToProcess = rawData;
+    } else if (rawData && typeof rawData === 'object') {
+        // Егер деректер нысан болса (workers, goods, orders), бәрін бір массивке жинау
+        dataToProcess = [
+            ...(rawData.workers || []),
+            ...(rawData.goods || []),
+            ...(rawData.orders || [])
+        ];
     }
 
-    function filterMarkers() {
-        markers.forEach(m => map.removeLayer(m));
-        markers = [];
-        let listHtml = "";
-        let count = 0;
-        const now = Date.now();
+    // Картаны тазалау
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+    let listHtml = "";
+    let count = 0;
+    const now = Date.now();
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
-        rawData.forEach(item => {
-            const createdTime = new Date(item.created_at).getTime();
-            const hoursPassed = (now - createdTime) / (1000 * 60 * 60);
-            
-            // 24 сағаттан асса көрсетпеу
-            if (hoursPassed > 24) return;
+    dataToProcess.forEach(item => {
+        // 2. УАҚЫТТЫ ТЕКСЕРУ (24 сағат)
+        const createdTime = new Date(item.created_at).getTime();
+        const hoursPassed = (now - createdTime) / (1000 * 60 * 60);
+        if (hoursPassed > 24) return;
 
-            // Тегін болса - тек иесі онлайн болса көрінеді (мысалы, соңғы 5 мин)
-            const isOnline = (now - (item.last_ping || 0)) < 300000;
-            if (!item.is_active && !item.is_vip) {
-                 if (!isOnline) return;
+        // 3. ОНЛАЙН СТАТУС ПЕН VIP ТЕКСЕРУ
+        const isOnline = (now - (item.last_ping || 0)) < 300000; // 5 мин
+        
+        // Тегін хабарлама тек иесі онлайн болса көрінеді
+        if (!item.is_active && !item.is_vip) {
+             if (!isOnline) return;
+        }
+        // VIP тек админ мақұлдаса көрінеді
+        if (item.is_vip && !item.is_active) return;
+
+        // 4. ІЗДЕУ (SEARCH) - Аты немесе қызметі бойынша
+        const itemName = (item.name || item.seller_name || item.client_name || "").toLowerCase();
+        const itemJob = (item.job || item.product_name || item.description || "").toLowerCase();
+        if (!itemName.includes(searchTerm) && !itemJob.includes(searchTerm)) return;
+
+        // 5. БАЙЛАНЫС АҚПАРАТТАРЫН ДАЙЫНДАУ (Әрқашан барлық жерде шығуы үшін)
+        let contactsHtml = "";
+        try {
+            const contacts = typeof item.contacts === 'string' ? JSON.parse(item.contacts) : item.contacts;
+            if (Array.isArray(contacts)) {
+                contactsHtml = contacts.map(c => `
+                    <div class="contact-item">
+                        <span style="color:#777; font-size:11px;">${c.type}:</span> 
+                        <b style="font-size:13px;">${c.val}</b>
+                    </div>
+                `).join('');
             }
+        } catch(e) { contactsHtml = "Дерек қате"; }
 
-            // VIP - тек админ мақұлдаса (is_active) көрінеді
-            if (item.is_vip && !item.is_active) return;
+        // 6. МАРКЕРДІ КАРТАҒА ШЫҒАРУ
+        const marker = L.circleMarker([item.lat, item.lon], {
+            color: item.is_vip ? 'gold' : 'blue',
+            weight: 3,
+            fillColor: isOnline ? '#00ff00' : (item.is_vip ? 'gold' : 'blue'),
+            fillOpacity: 0.7,
+            radius: 10
+        }).addTo(map);
 
-            const marker = L.circleMarker([item.lat, item.lon], {
-                color: item.is_vip ? 'gold' : 'blue',
-                radius: 10,
-                fillOpacity: 0.8
-            }).addTo(map);
+        const popupContent = `
+            <div style="min-width:150px;">
+                <b style="font-size:16px;">${item.job || item.product_name || "Қызмет"}</b><br>
+                <span style="color:gray;">${item.name || "Пайдаланушы"}</span>
+                <hr style="margin:5px 0;">
+                ${contactsHtml}
+                <div style="font-size:10px; color:#aaa; margin-top:5px;">Жарияланды: ${new Date(item.created_at).toLocaleString()}</div>
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+        markers.push(marker);
 
-            let contactsHtml = JSON.parse(item.contacts).map(c => `<div class="contact-item"><b>${c.type}:</b> ${c.val}</div>`).join('');
-            marker.bindPopup(`<b>${item.job}</b><br>${item.name}<hr>${contactsHtml}`);
-            markers.push(marker);
+        // 7. ЖАҚЫН МАҢДА ТІЗІМІНЕ ҚОСУ
+        if (map.getBounds().contains([item.lat, item.lon])) {
+            count++;
+            listHtml += `
+                <div class="card" style="border-left: 5px solid ${item.is_vip ? 'gold' : 'blue'}; margin-bottom:10px; padding:10px; background:#fff;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <b>${item.job || item.product_name}</b>
+                        ${isOnline ? '<span style="color:green; font-size:10px;">● онлайн</span>' : ''}
+                    </div>
+                    <div style="font-size:13px; color:#555;">${item.name}</div>
+                    <div style="margin-top:5px;">${contactsHtml}</div>
+                </div>
+            `;
+        }
+    });
 
-            if (map.getBounds().contains([item.lat, item.lon])) {
-                count++;
-                listHtml += `<div class="card"><b>${item.job}</b><br>${contactsHtml}</div>`;
-            }
-        });
-        document.getElementById('item-count').innerText = count;
-        document.getElementById('dynamic-list-content').innerHTML = listHtml;
-    }
+    document.getElementById('item-count').innerText = count;
+    document.getElementById('dynamic-list-content').innerHTML = listHtml || "<div style='padding:10px;'>Бұл маңда ештеңе табылған жоқ</div>";
+}
 
     // Админ тексеру
     function checkAdmin() {
