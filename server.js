@@ -74,9 +74,13 @@ app.get('/get-all', async (req, res) => {
 // Сақтау функцияларын оңтайландыру (is_vip қолданылса, токенді өзгерту)
 const saveTemplate = async (table, cols, vals, device_token, is_vip) => {
     const finalToken = is_vip ? `WAITING_VIP_${device_token}` : device_token;
+    // Егер VIP болса - false (админ күтеді), VIP емес болса - true (бірден шығады)
+    const isActive = is_vip ? false : true; 
+    
     const placeholders = vals.map((_, i) => `$${i + 1}`).join(',');
-    const query = `INSERT INTO ${table} (${cols.join(',')}, device_token, is_active) VALUES (${placeholders}, $${vals.length + 1}, false)`;
-    await pool.query(query, [...vals, finalToken]);
+    const query = `INSERT INTO ${table} (${cols.join(',')}, device_token, is_active) VALUES (${placeholders}, $${vals.length + 1}, $${vals.length + 2})`;
+    
+    await pool.query(query, [...vals, finalToken, isActive]);
 };
 
 app.post('/save-worker', async (req, res) => {
