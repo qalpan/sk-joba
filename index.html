@@ -232,37 +232,18 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
     localStorage.setItem('token', myToken);
 
     let isAdmin = location.hash === "#admin777";
-    let isGrayScale = true; // Бастапқыда ақ-қара стиль
 
-    // 1. КАРТАНЫ БАСТАУ
+    // 1. КАРТАНЫ БАСТАУ (Стильдер мен батырмалар бұрынғы қалпында)
     const map = L.map('map').setView([43.2389, 76.8897], 12);
     
-    // Карта қабаттары (Түрлі-түсті және Ақ-қара)
     const colorLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-    const grayLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+    const grayLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Бастапқы стильді орнату
-    grayLayer.addTo(map);
-
-    // Карта стилін ауыстыру батырмасы
-    const styleBtn = L.control({position: 'topright'});
-    styleBtn.onAdd = function() {
-        let div = L.DomUtil.create('div', 'style-control');
-        div.innerHTML = '<button onclick="toggleMapStyle()" style="padding:8px; cursor:pointer; background:white; border:2px solid #ccc; border-radius:4px; font-weight:bold;">🎨 Карта түсі</button>';
-        return div;
+    const baseMaps = {
+        "Ақ-қара": grayLayer,
+        "Түрлі-түсті": colorLayer
     };
-    styleBtn.addTo(map);
-
-    function toggleMapStyle() {
-        if (isGrayScale) {
-            map.removeLayer(grayLayer);
-            colorLayer.addTo(map);
-        } else {
-            map.removeLayer(colorLayer);
-            grayLayer.addTo(map);
-        }
-        isGrayScale = !isGrayScale;
-    }
+    L.control.layers(baseMaps).addTo(map); // Оң жақ үстіндегі бұрынғы батырмалар
 
     const markersGroup = L.markerClusterGroup({ maxClusterRadius: 35 });
     map.addLayer(markersGroup);
@@ -274,21 +255,22 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             .then(r => r.json())
             .then(data => {
                 const newData = [];
-                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w_'+x.id}));
-                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g_'+x.id}));
-                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o_'+x.id}));
+                // UID арқылы дубликаттарды жою
+                if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w'+x.id}));
+                if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g'+x.id}));
+                if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o'+x.id}));
                 rawData = newData; 
                 filterMarkers(); 
             });
     }
 
-    // 3. ҚАТАҢ ТЕКСЕРУ (VALIDATION) - Сіздің нұсқаңыз сақталды
+    // 3. ҚАТАҢ ТЕКСЕРУ (VALIDATION)
     function validateForm(type) {
         const name = v(type === 'worker' ? 'w_name' : (type === 'good' ? 'g_name' : 'c_name'));
         const desc = v(type === 'worker' ? 'w_job' : (type === 'good' ? 'g_prod' : 'c_desc'));
         const alphaRegex = /^[a-zA-Zа-яА-ЯәӘіІңҢғҒүҮұҰқҚөӨһҺ\s]+$/;
 
-        if (!name || name.length < 2 || !alphaRegex.test(name)) { alert("Есімді тек әріппен толтырыңыз!"); return false; }
+        if (!name || name.length < 2 || !alphaRegex.test(name)) { alert("Есімді тек әріппен жазыңыз!"); return false; }
         if (!desc || desc.length < 3) { alert("Сипаттаманы толық жазыңыз!"); return false; }
 
         let contacts = [];
@@ -302,18 +284,21 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             if (t === 'Тел') {
                 const cleanPhone = val.replace(/[\s\-]/g, '');
                 if (!cleanPhone.startsWith('+7') || cleanPhone.length !== 12) {
-                    alert("Тел нөмірі: +7XXXXXXXXXX"); isValid = false; return;
+                    alert("Телефон қате! Формат: +7XXXXXXXXXX (12 таңба)"); isValid = false; return;
                 }
             }
+            if (t === 'Email' && (!val.includes('@') || !val.includes('.'))) { alert("Email қате!"); isValid = false; return; }
+            if (t === 'Teams' && !val.toLowerCase().includes('teams.microsoft.com')) { alert("Teams қате!"); isValid = false; return; }
             contacts.push({type: t, val: val});
         });
         return isValid ? JSON.stringify(contacts) : false;
     }
 
-    // 4. ЖАРИЯЛАУ
+    // 4. VIP ЖАРИЯЛАУ (Тек расталған соң шығады)
     function initVIP(type) {
-        const payInfo = "💎 VIP ЖАРИЯЛАУ (490₸)\nKaspi: +7 701 739 83 09\nТөлемнен кейін 'ОК' басыңыз.";
-        if (confirm(payInfo)) processPost(type, true);
+        if (confirm("💎 VIP ЖАРИЯЛАУ (490₸)\nKaspi: +7 701 739 83 09\nТөлем жасасаңыз 'ОК' басыңыз.")) {
+            processPost(type, true);
+        }
     }
 
     function processPost(type, isVip) {
@@ -325,7 +310,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                 device_token: myToken, is_vip: isVip,
                 lat: pos.coords.latitude, lon: pos.coords.longitude,
                 contacts: contactJson,
-                is_active: !isVip // VIP-тер активті емес болып түседі
+                is_active: !isVip // VIP болса бірден көрінбейді (active: false)
             };
             if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
             if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
@@ -334,7 +319,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
                 method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
             }).then(() => { 
-                alert(isVip ? "Төлем растауға жіберілді!" : "Жарияланды!"); 
+                alert(isVip ? "Төлем растауға жіберілді! Админ мақұлдаған соң шығады." : "Жарияланды!"); 
                 loadMarkers(); 
             });
         }, null, { enableHighAccuracy: true });
@@ -351,6 +336,8 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             processed.add(i.uid);
 
             const isOwner = (i.device_token && i.device_token.includes(myToken));
+            
+            // Тек расталғандарды немесе Админ/Иесіне ғана расталмағанды көрсету
             if (i.is_vip && !i.is_active && !isAdmin && !isOwner) return;
 
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
@@ -364,10 +351,11 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                     })
                 });
 
+                // Мини ақпарат (әрқашан көрінеді)
                 m.bindTooltip(`<b>${i.info}</b>`, { permanent: true, direction: 'top', offset: [0, -10] });
                 
                 let delBtn = (isAdmin || isOwner) ? `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; border-radius:4px; width:100%; margin-top:10px; cursor:pointer;">🗑️ Өшіру</button>` : "";
-                let confirmBtn = (isAdmin && !i.is_active) ? `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; width:100%; margin-top:5px; border-radius:4px; cursor:pointer;">✅ Төлемді Растау</button>` : "";
+                let confirmBtn = (isAdmin && !i.is_active) ? `<button onclick="activateVip(${i.id},'${i.type}')" style="background:green; color:white; width:100%; margin-top:5px; border-radius:4px; cursor:pointer;">✅ VIP Растау</button>` : "";
 
                 m.bindPopup(`<div><b>${i.info}</b><br><small>${i.title}</small><hr>${formatContacts(i.contacts)}${delBtn}${confirmBtn}</div>`);
                 markersGroup.addLayer(m);
@@ -379,7 +367,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         fetch(API + '/admin/toggle-active', { 
             method: 'POST', headers: {'Content-Type': 'application/json'}, 
             body: JSON.stringify({ id, type, active: true }) 
-        }).then(() => { alert("Төлем расталды!"); loadMarkers(); });
+        }).then(() => { alert("VIP Расталды!"); loadMarkers(); });
     }
 
     function deleteItem(id, type) {
