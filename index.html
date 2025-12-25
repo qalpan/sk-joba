@@ -272,42 +272,46 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
 
 function processPost(type, isVip) {
     const contactJson = validateForm(type);
-    if (!contactJson) return; // Егер байланыс деректері бос болса, тоқтайды
+    if (!contactJson) return; // Егер байланыс жазылмаса, жібермейді
 
-    // GPS баптаулары (жоғары дәлдік)
-    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+    // Пайдаланушыға күте тұруды ескерту
+    alert("Орналасқан жеріңіз анықталуда... Күте тұрыңыз.");
 
     navigator.geolocation.getCurrentPosition(pos => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
 
-        // Координата 0 немесе дефолтты нүкте болса жібермеу
+        // Егер GPS 0 болса немесе дефолтты Алматы нүктесі болса - жібермеу
         if (!lat || lat === 0 || lat === 43.2389) {
-            alert("GPS нүктесі дұрыс анықталмады. Қайта көріңіз.");
+            alert("Қате: GPS нүктесін анықтау мүмкін болмады. GPS-ті қосып қайта көріңіз.");
             return;
         }
 
         const d = { 
-            device_token: myToken, is_vip: isVip, lat, lon,
-            contacts: contactJson, is_active: !isVip // VIP болса бірден көрінбейді (false)
+            device_token: myToken, 
+            is_vip: isVip, 
+            lat: lat, 
+            lon: lon,
+            contacts: contactJson, 
+            is_active: !isVip // VIP болса false болып түседі, админ растағанша көрінбейді
         };
-        
-        // Деректерді жинау
+
         if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
         if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
         if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); }
 
         fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
-            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify(d) 
         }).then(() => { 
-            alert(isVip ? "Төлем растауға жіберілді! Админ мақұлдағанда шығады." : "Сәтті жарияланды!"); 
+            alert(isVip ? "VIP төлем растауға жіберілді! Админ мақұлдағанда картада пайда болады." : "Жарияланды!"); 
             loadMarkers(); 
         });
     }, (err) => {
-        alert("GPS-ке рұқсат беріңіз немесе интернетті тексеріңіз!");
-    }, options);
+        alert("GPS-ке рұқсат беріңіз! Онсыз картада көрсету мүмкін емес.");
+    }, { enableHighAccuracy: true, timeout: 15000 });
 }
-
     // 4. КАРТА ЖӘНЕ "ЖАҚЫН МАҢДА" ТІЗІМІ (АҚПАРАТТЫ ТОЛЫҚ ШЫҒАРУ)
 function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
@@ -317,19 +321,22 @@ function filterMarkers() {
     let listHtml = "";
     let count = 0;
 
-    rawData.forEach(i => {
-        // 1. Дубликаттарды тексеру
-        if(processedUids.has(i.uid)) return;
-        processedUids.add(i.uid);
+rawData.forEach(i => {
+            // 1. Дубликаттарды тексеру (ОСЫ ЖЕРДЕ ҚАЛАДЫ)
+            if(processedUids.has(i.uid)) return;
+            processedUids.add(i.uid);
 
-        // 2. VIP ЖӘНЕ ИЕСІН ТЕКСЕРУ (ОСЫ ЖЕРГЕ ҚОЙЫЛАДЫ)
-        const isOwner = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken);
-        
-        // Қатаң фильтр: Егер бұл VIP болса, бірақ әлі расталмаса (is_active: false), 
-        // онда оны тек админ немесе жариялаған иесі ғана көре алады.
-        if (i.device_token && i.device_token.startsWith('WAITING_VIP_') && !i.is_active && !isAdmin && !isOwner) {
-            return; 
-        }
+            // 2. МЫНА ЖЕРГЕ ЖАҢА БЛОКТЫ ҚОЙЫҢЫЗ (VIP ЖӘНЕ GPS ТЕКСЕРІСІ):
+            const isOwner = (i.device_token === myToken || i.device_token === 'WAITING_VIP_' + myToken);
+            
+            // ЕГЕР VIP болса және әлі АКТИВТІ емес болса (is_active === false)
+            // Онда оны тек АДМИН мен ИЕСІ ғана көре алады
+            if (i.device_token && i.device_token.includes('WAITING_VIP_') && !i.is_active) {
+                if (!isAdmin && !isOwner) return; // Басқалар үшін жасыру
+            }
+
+            // Қате координатамен базаға түсіп кетсе де картаға шығармау
+            if (!i.lat || parseFloat(i.lat) === 0) return;
 
         // 3. Іздеу фильтрі және Картаға шығару логикасы
         if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
@@ -406,6 +413,22 @@ function filterMarkers() {
         if(!confirm("Өшіру?")) return;
         fetch(API + '/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, type, token: isAdmin ? "admin777" : myToken }) }).then(() => loadMarkers());
     }
+
+    function addContactRow(listId) {
+    const list = document.getElementById(listId);
+    const div = document.createElement('div');
+    div.className = 'contact-row';
+    div.innerHTML = `
+        <select style="width:35%" class="c-type">
+            <option>Тел</option>
+            <option>Email</option>
+            <option>WhatsApp</option>
+            <option>Skype</option>
+        </select>
+        <input style="width:65%" class="c-val" placeholder="Дерек">
+    `;
+    list.appendChild(div);
+}
 
     map.on('moveend', filterMarkers);
     window.onhashchange = () => { isAdmin = location.hash === "#admin777"; loadMarkers(); };
