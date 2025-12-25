@@ -262,10 +262,10 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
             });
     }
 
-    // 3. ЖАРИЯЛАУ (saveItem / initVIP)
+    // 3. ЖАРИЯЛАУ (GPS ТЕКСЕРУМЕН)
     function saveItem(type) { processPost(type, false); }
     function initVIP(type) {
-        if (confirm("💎 VIP ЖАРИЯЛАУ (490₸)\nАдмин растаған соң ғана картаға шығады. Төлем жасасаңыз 'ОК' басыңыз.")) {
+        if (confirm("💎 VIP ТӨЛЕМ: 490₸\nАдмин төлемді растаған соң ғана картада пайда болады.")) {
             processPost(type, true);
         }
     }
@@ -274,54 +274,41 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         const contactJson = validateForm(type);
         if (!contactJson) return;
 
-        // GPS ДӘЛДІГІН КҮШЕЙТУ
         navigator.geolocation.getCurrentPosition(pos => {
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
 
-            // Егер координаттар 0 болса немесе анықталмаса, жібермеу
-            if (!lat || !lon || lat === 0) {
-                alert("GPS координаты анықталмады. Қайта көріңіз.");
-                return;
-            }
+            if (!lat || lat === 0) { alert("GPS координаты анықталмады!"); return; }
 
             const d = { 
-                device_token: myToken, is_vip: isVip,
-                lat: lat, lon: lon,
-                contacts: contactJson, 
-                is_active: !isVip // VIP болса false болып түседі
+                device_token: myToken, is_vip: isVip, lat, lon,
+                contacts: contactJson, is_active: !isVip 
             };
-
             if(type==='worker') { d.name=v('w_name'); d.job=v('w_job'); }
             if(type==='good') { d.name=v('g_name'); d.product=v('g_prod'); d.price=v('g_price'); }
             if(type==='order') { d.name=v('c_name'); d.description=v('c_desc'); }
 
             fetch(API + (type==='worker'?'/save-worker':(type==='good'?'/save-goods':'/save-order')), { 
                 method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) 
-            }).then(() => { 
-                alert(isVip ? "Төлем растауға жіберілді! Админ растаған соң нүктеңіз пайда болады." : "Жарияланды!"); 
-                loadMarkers(); 
-            });
-        }, (err) => {
-            alert("Геолокацияға рұқсат беріңіз немесе GPS қосыңыз!");
-        }, { enableHighAccuracy: true, timeout: 10000 });
+            }).then(() => { alert("Жіберілді!"); loadMarkers(); });
+        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
     }
 
-    // 4. КАРТА ЖӘНЕ ТІЗІМ (ҚАТАҢ ФИЛЬТР)
+    // 4. КАРТА ЖӘНЕ "ЖАҚЫН МАҢДА" ТІЗІМІ (АҚПАРАТТЫ ТОЛЫҚ ШЫҒАРУ)
     function filterMarkers() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         markersGroup.clearLayers();
+        const processedUids = new Set(); 
         const bounds = map.getBounds();
         let listHtml = "";
         let count = 0;
 
         rawData.forEach(i => {
-            // VIP ТЕКСЕРУ: Тек иесіне немесе админге ғана расталмаған VIP көрінеді
-            const isOwner = (i.device_token === myToken);
-            if (i.is_vip && i.is_active === false && !isAdmin && !isOwner) return;
+            if(processedUids.has(i.uid)) return;
+            processedUids.add(i.uid);
 
-            // Координаттар қате болса (0,0 сияқты), картаға шығармаймыз
-            if (!i.lat || parseFloat(i.lat) === 0) return;
+            const isOwner = (i.device_token === myToken);
+            if (i.is_vip && !i.is_active && !isAdmin && !isOwner) return;
 
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
@@ -349,7 +336,7 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
                     listHtml += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
                         <div>
                             <b style="color:${color}">${i.info}</b> <small>(${i.title})</small>
-                            <div style="margin-top:5px; font-size:12px;">${contactsHtml}</div>
+                            <div style="margin-top:5px; font-size:12px; color:#555;">${contactsHtml}</div>
                         </div>
                         <div>${adminBtns}</div>
                     </div>`;
@@ -361,17 +348,28 @@ th { background: #f8f9fa; position: sticky; top: 50px; } /* Кесте басы 
         document.getElementById('dynamic-list-content').innerHTML = listHtml || "<p style='padding:10px;'>Бұл маңда ештеңе жоқ.</p>";
     }
 
+    // БАЙЛАНЫС АҚПАРАТЫН ҚАЛЫПТАСТЫРУ (Тел, Емаил т.б.)
     function formatContacts(jsonStr) {
         try {
             const arr = typeof jsonStr === 'string' ? JSON.parse(jsonStr || '[]') : jsonStr;
-            return arr.map(c => `<div>${c.type}: ${c.val}</div>`).join('');
+            return arr.map(c => `<div><b>${c.type}:</b> ${c.val}</div>`).join('');
         } catch(e) { return ""; }
     }
 
     function validateForm(type) {
         const name = v(type === 'worker' ? 'w_name' : (type === 'good' ? 'g_name' : 'c_name'));
-        if (!name) { alert("Атыңызды жазыңыз!"); return false; }
-        return true; // Контактілерді жинау логикасын осында жалғастырыңыз
+        const desc = v(type === 'worker' ? 'w_job' : (type === 'good' ? 'g_prod' : 'c_desc'));
+        if (!name || !desc) { alert("Өрістерді толтырыңыз!"); return false; }
+        
+        let contacts = [];
+        const listId = type === 'worker' ? 'w_contacts_list' : (type === 'good' ? 'g_contacts_list' : 'o_contacts_list');
+        const rows = document.getElementById(listId).querySelectorAll('.contact-row');
+        rows.forEach(r => {
+            const t = r.querySelector('.c-type').value; 
+            const val = r.querySelector('.c-val').value.trim();
+            if(val) contacts.push({type: t, val: val});
+        });
+        return contacts.length > 0 ? JSON.stringify(contacts) : false;
     }
 
     function v(id){ return document.getElementById(id) ? document.getElementById(id).value.trim() : ""; }
