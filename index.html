@@ -287,7 +287,7 @@ function saveItem(type, isVip) {
 
 function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
-    const bounds = map.getBounds(); // Картаның қазіргі көрініп тұрған шекарасы
+    const bounds = map.getBounds(); 
     markersGroup.clearLayers();
     let listHtml = '';
     const now = Date.now();
@@ -296,49 +296,57 @@ function filterMarkers() {
         const created = new Date(i.created_at).getTime();
         if (now - created > 86400000) return; 
 
+        // Екінші құрылғыда көріну үшін онлайн уақытын нығайту
         const lastPingTime = i.last_ping ? new Date(i.last_ping).getTime() : 0;
-        const isOnline = (now - lastPingTime < 120000); 
+        const isOnline = (now - lastPingTime < 120000); // 2 минуттық диапазон
         const isOwner = i.device_token === myToken;
 
-        // 1. Негізгі көрсету шарты (VIP немесе Онлайн)
-        if (i.is_active == 1 || isOnline || isOwner) {
-            // 2. Іздеу сөзіне сәйкестігі
+        // КӨРСЕТУ ШАРТЫ: VIP мақұлданса НЕМЕСЕ иесі болса НЕМЕСЕ басқа біреу онлайн болса
+        if (i.is_active == 1 || isOwner || isOnline) {
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 
                 const latLng = L.latLng(i.lat, i.lon);
-                
-                // 3. ТЕК КАРТАДА КӨРІНІП ТҰРҒАН АУМАҚТЫ ТЕКСЕРУ (Bounds check)
                 const isInBounds = bounds.contains(latLng);
 
-                // Маркерді картаға бәрібір қосамыз (кластерлеу үшін)
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const contactsHtml = formatContacts(i);
-                let delBtn = isOwner ? `<br><button onclick="deleteItem(${i.id},'${i.type}')" style="background:red;color:white;border:none;padding:5px;border-radius:4px;width:100%;margin-top:5px;">🗑️ Өшіру</button>` : '';
+                
+                // VIP ИЕСІНЕ ЖӘНЕ ТЕГІН ИЕСІНЕ КӨРІНЕТІН ӨШІРУ БАТЫРМАСЫ
+                let delBtn = isOwner ? `<br><button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:5px; border-radius:4px; width:100%; margin-top:5px; cursor:pointer; font-weight:bold;">🗑️ Өшіру</button>` : '';
 
+                // Маркерді картаға қосу
                 const m = L.marker([i.lat, i.lon], {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                <div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 12px gold;border:2px solid gold;':''}"></div>
-                                <div class="marker-label" style="background:white;padding:2px;font-size:10px;border:1px solid #ccc;">${i.info.substring(0,10)}</div>
+                                <div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 12px gold; border:2px solid gold;':''}"></div>
+                                <div class="marker-label" style="background:white; padding:2px 5px; border-radius:4px; font-size:10px; border:1px solid #ccc; margin-top:2px;">${i.info.substring(0,10)}</div>
                                </div>`,
                         className: '', iconSize: [40, 40], iconAnchor: [20, 8] 
                     })
                 });
-                m.bindPopup(`<div style="text-align:center;"><b>${i.info}</b><br><small>${i.title}</small><hr>${contactsHtml}${delBtn}</div>`);
+
+                m.bindPopup(`<div style="text-align:center; min-width:150px;"><b>${i.info}</b><br><small>${i.title}</small><hr style="margin:5px 0;">${contactsHtml}${delBtn}</div>`);
                 markersGroup.addLayer(m);
 
-                // 4. ТІЗІМГЕ ТЕК ЭКРАНДАҒЫЛАРДЫ ҚОСУ
+                // ТЕК КАРТАДАҒЫ КӨРІНІП ТҰРҒАН АУМАҚТЫ ТІЗІМГЕ ШЫҒАРУ
                 if (isInBounds) {
-                    listHtml += `<div class="list-item" style="${i.is_active==1?'border-left:5px solid gold; background:#fffdf0;':''}">
-                        <div style="flex:1;"><b>${i.info}</b><br><small>${i.title}</small>${isOwner ? delBtn : ''}</div>
-                        <div style="text-align:right; font-size:11px;">${contactsHtml}</div>
-                    </div>`;
+                    listHtml += `
+                        <div class="list-item" style="${i.is_active==1 ? 'border-left:5px solid gold; background:#fffdf0;' : ''} display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                            <div style="flex:1;">
+                                <b>${i.info}</b><br><small>${i.title}</small>
+                                ${isOwner ? delBtn : ''}
+                            </div>
+                            <div style="text-align:right; font-size:11px; min-width:100px;">${contactsHtml}</div>
+                        </div>`;
                 }
             }
         }
     });
-    document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:10px; color:gray;">Бұл аумақта хабарлама жоқ...</div>';
+    document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:20px; text-align:center; color:gray;">Бұл аумақта ештеңе жоқ...</div>';
 }
+
+// Карта қозғалғанда тізім автоматты жаңаруы үшін:
+map.on('moveend', filterMarkers);
 
 // КАРТА ЖЫЛЖЫҒАНДА ТІЗІМДІ АВТОМАТТЫ ТҮРДЕ ЖАҢАРТУ
 map.on('moveend', filterMarkers);
