@@ -290,26 +290,28 @@ function saveItem(type, isVip) {
         });
     }, () => alert("GPS рұқсат беріңіз!"));
 }
+    
 function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
     const bounds = map.getBounds(); 
     
-    // МАРКЕРЛЕРДІ ТОЛЫҚ ТАЗАЛАУ (Екі рет көрінбеуі үшін)
+    // МАРКЕРЛЕРДІ ТОЛЫҚ ТАЗАЛАУ (Екі рет көрінбеуі үшін маңызды)
     markersGroup.clearLayers();
     let listHtml = '';
     const now = Date.now();
+    let visibleCount = 0;
 
-    // Қайталанатын ID-лерді болдырмау үшін массивті сүзу
-    const uniqueData = Array.from(new Map(rawData.map(item => [item.id + item.type, item])).values());
+    // Қайталанатын деректерді біржола жою (uid бойынша сүзу)
+    const uniqueData = Array.from(new Map(rawData.map(item => [item.uid, item])).values());
 
     uniqueData.forEach(i => {
         const isOwner = i.device_token === myToken;
         
-        // ОНЛАЙН СТАТУС: Уақыт айырмашылығын жою үшін 10 минут (600000 мс)
+        // Екінші құрылғыда көрінуі үшін онлайн уақытын 10 минутқа ұзарттық (сервер уақытымен сәйкес келмесе де көрінеді)
         const lastPing = i.last_ping ? new Date(i.last_ping).getTime() : 0;
         const isOnline = (now - lastPing < 600000); 
 
-        // ШАРТ: VIP мақұлданса НЕМЕСЕ иесі болса НЕМЕСЕ біреу онлайн болса
+        // КӨРСЕТУ ШАРТЫ: VIP болса НЕМЕСЕ иесі болса НЕМЕСЕ онлайн болса
         if (i.is_active == 1 || isOwner || isOnline) {
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 
@@ -318,10 +320,10 @@ function filterMarkers() {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const contactsHtml = formatContacts(i);
                 
-                // --- ӨШІРУ БАСПАСЫ (ТЕК ИЕСІНЕ) ---
+                // --- ӨШІРУ БАСПАСЫ (ТЕК VIP МӘРТЕБЕСІ БАР ЖӘНЕ ОНЫҢ ИЕСІНЕ ҒАНА КӨРІНЕДІ) ---
                 let delBtn = "";
-                if (isOwner) {
-                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:8px; border-radius:5px; width:100%; margin-top:10px; cursor:pointer; font-weight:bold;">🗑️ Өшіру</button>`;
+                if (isOwner && i.is_active == 1) {
+                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:8px; border-radius:5px; width:100%; margin-top:10px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">🗑️ VIP Өшіру</button>`;
                 }
 
                 // Картаға маркер қосу
@@ -329,7 +331,7 @@ function filterMarkers() {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
                                 <div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 15px gold; border:2px solid gold;':''}"></div>
-                                <div class="marker-label" style="background:white; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #ccc; margin-top:3px; font-weight:bold;">${i.info.substring(0,12)}</div>
+                                <div class="marker-label">${i.info.substring(0,12)}</div>
                                </div>`,
                         className: '', iconSize: [45, 45], iconAnchor: [22, 10] 
                     })
@@ -338,19 +340,20 @@ function filterMarkers() {
                 m.bindPopup(`<div style="text-align:center; min-width:180px;">
                                 <b style="font-size:15px;">${i.info}</b><br><small style="color:gray;">${i.title}</small>
                                 <hr style="margin:10px 0; border-top:1px solid #eee;">
-                                <div style="text-align:left; font-size:12px; line-height:1.5;">${contactsHtml}</div>
+                                <div style="text-align:left; font-size:12px;">${contactsHtml}</div>
                                 ${delBtn}
                              </div>`);
                 markersGroup.addLayer(m);
 
                 // ТІЗІМГЕ ТЕК КАРТАДАҒЫ КӨРІНІП ТҰРҒАНДАРДЫ ҚОСУ
                 if (isInBounds) {
+                    visibleCount++;
                     listHtml += `
-                        <div class="list-item" style="${i.is_active==1 ? 'border-left:6px solid gold; background:#fffdf0;' : 'border-left:6px solid #007bff;'} display:flex; justify-content:space-between; padding:15px; border-bottom:1px solid #eee; margin-bottom:5px; background:white; border-radius:4px;">
+                        <div class="list-item" style="${i.is_active==1 ? 'border-left:6px solid gold; background:#fffdf0;' : 'border-left:6px solid #007bff;'}">
                             <div style="flex:1;">
                                 <b style="font-size:15px;">${i.info}</b><br>
                                 <small style="color:#666;">${i.title}</small>
-                                ${isOwner ? '<div style="margin-top:5px;">' + delBtn + '</div>' : ''}
+                                ${isOwner && i.is_active == 1 ? '<div style="margin-top:5px;">' + delBtn + '</div>' : ''}
                             </div>
                             <div style="text-align:right; font-size:12px; color:#333;">${contactsHtml}</div>
                         </div>`;
@@ -358,6 +361,7 @@ function filterMarkers() {
             }
         }
     });
+    document.getElementById('item-count').innerText = visibleCount;
     document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:40px; text-align:center; color:#999;">Бұл аумақта ақпарат жоқ...</div>';
 }
 
@@ -435,16 +439,20 @@ map.on('moveend', filterMarkers);
         }); return JSON.stringify(c);
     }
 
-    function loadMarkers() {
-        fetch(API + '/get-all').then(r => r.json()).then(data => {
-            adminDataFull = data.admin_all;
-            const newData = [];
-            if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name}));
-            if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name}));
-            if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name}));
-            rawData = newData; filterMarkers();
-        });
-    }
+function loadMarkers() {
+    fetch(API + '/get-all').then(r => r.json()).then(data => {
+        adminDataFull = data.admin_all;
+        const newData = [];
+        
+        // Әр дерекке бірегей ID беру арқылы қайталануды (дубликат) болдырмаймыз
+        if(data.workers) data.workers.forEach(x => newData.push({...x, type:'worker', info: x.job, title: x.name, uid: 'w'+x.id}));
+        if(data.goods) data.goods.forEach(x => newData.push({...x, type:'good', info: x.product_name, title: x.seller_name, uid: 'g'+x.id}));
+        if(data.orders) data.orders.forEach(x => newData.push({...x, type:'order', info: x.description, title: x.client_name, uid: 'o'+x.id}));
+        
+        rawData = newData; 
+        filterMarkers();
+    }).catch(e => console.error("Дерек алу қатесі:", e));
+}
 
     function addContactRow(id) {
         const div = document.createElement('div'); div.className = 'contact-row';
