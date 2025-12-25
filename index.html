@@ -298,28 +298,28 @@ function filterMarkers() {
     const now = Date.now();
 
     rawData.forEach(i => {
-        const created = new Date(i.created_at).getTime();
-        if (now - created > 86400000) return; 
-
-        // Екінші құрылғыда көріну үшін онлайн уақытын нығайту
-        const lastPingTime = i.last_ping ? new Date(i.last_ping).getTime() : 0;
-        const isOnline = (now - lastPingTime < 120000); // 2 минуттық диапазон
         const isOwner = i.device_token === myToken;
+        
+        // Онлайн статус (5 минуттық терезе)
+        const lastPing = i.last_ping ? new Date(i.last_ping).getTime() : 0;
+        const isOnline = (now - lastPing < 300000); 
 
-        // КӨРСЕТУ ШАРТЫ: VIP мақұлданса НЕМЕСЕ иесі болса НЕМЕСЕ басқа біреу онлайн болса
+        // КӨРСЕТУ ШАРТЫ
         if (i.is_active == 1 || isOwner || isOnline) {
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 
                 const latLng = L.latLng(i.lat, i.lon);
                 const isInBounds = bounds.contains(latLng);
-
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const contactsHtml = formatContacts(i);
                 
-                // VIP ИЕСІНЕ ЖӘНЕ ТЕГІН ИЕСІНЕ КӨРІНЕТІН ӨШІРУ БАТЫРМАСЫ
-                let delBtn = isOwner ? `<br><button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:5px; border-radius:4px; width:100%; margin-top:5px; cursor:pointer; font-weight:bold;">🗑️ Өшіру</button>` : '';
+                // --- ОСЫ ЖЕРДЕ ӨЗГЕРІС: ТЕК VIP ИЕСІНЕ ӨШІРУДІ КӨРСЕТУ ---
+                let delBtn = '';
+                if (isOwner && i.is_active == 1) {
+                    delBtn = `<br><button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:6px; border-radius:4px; width:100%; margin-top:8px; cursor:pointer; font-weight:bold;">🗑️ VIP өшіру</button>`;
+                }
 
-                // Маркерді картаға қосу
+                // Картадағы маркер
                 const m = L.marker([i.lat, i.lon], {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
@@ -330,24 +330,29 @@ function filterMarkers() {
                     })
                 });
 
-                m.bindPopup(`<div style="text-align:center; min-width:150px;"><b>${i.info}</b><br><small>${i.title}</small><hr style="margin:5px 0;">${contactsHtml}${delBtn}</div>`);
+                m.bindPopup(`<div style="text-align:center; min-width:160px;">
+                                <b>${i.info}</b><br><small>${i.title}</small>
+                                <hr style="margin:8px 0; border:0; border-top:1px solid #eee;">
+                                <div style="text-align:left; font-size:12px;">${contactsHtml}</div>
+                                ${delBtn}
+                             </div>`);
                 markersGroup.addLayer(m);
 
-                // ТЕК КАРТАДАҒЫ КӨРІНІП ТҰРҒАН АУМАҚТЫ ТІЗІМГЕ ШЫҒАРУ
+                // Тізімге тек экрандағыларды шығару
                 if (isInBounds) {
                     listHtml += `
-                        <div class="list-item" style="${i.is_active==1 ? 'border-left:5px solid gold; background:#fffdf0;' : ''} display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                        <div class="list-item" style="${i.is_active==1 ? 'border-left:5px solid gold; background:#fffdf0;' : ''} padding:12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
                             <div style="flex:1;">
                                 <b>${i.info}</b><br><small>${i.title}</small>
-                                ${isOwner ? delBtn : ''}
+                                ${delBtn}
                             </div>
-                            <div style="text-align:right; font-size:11px; min-width:100px;">${contactsHtml}</div>
+                            <div style="text-align:right; font-size:11px;">${contactsHtml}</div>
                         </div>`;
                 }
             }
         }
     });
-    document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:20px; text-align:center; color:gray;">Бұл аумақта ештеңе жоқ...</div>';
+    document.getElementById('dynamic-list-content').innerHTML = listHtml || '<div style="padding:20px; text-align:center; color:gray;">Бұл аумақта хабарлама жоқ...</div>';
 }
 
 // Карта қозғалғанда тізім автоматты жаңаруы үшін:
