@@ -17,7 +17,7 @@
         .card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 12px; border-left: 6px solid var(--blue); box-shadow: 0 4px 6px rgba(0,0,0,0.07); position: relative; }
         .card.vip { border-left-color: var(--gold); background: #fffdf0; }
         
-        /* 5. Толық ақпарат стилі */
+        /* 5. Толық ақпарат стилі (Маркер мен Жақын маңда) */
         .info-badge { display: inline-block; background: #f1f3f5; padding: 4px 10px; border-radius: 6px; font-size: 13px; margin: 3px 3px 0 0; border: 1px solid #dee2e6; }
         .info-badge b { color: var(--blue); }
 
@@ -27,7 +27,6 @@
         .btn-vip { background: var(--gold); color: black; }
         .btn-del { background: var(--red); color: white; width: auto; padding: 5px 15px; font-size: 12px; border-radius: 5px; float: right; }
         
-        /* Админ панель */
         #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:10000; padding:20px; overflow-y:auto; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
@@ -51,7 +50,7 @@
     <hr style="margin:25px 0;">
 
     <div id="form-area">
-        <h4>📢 Жаңа хабарлама</h4>
+        <h4>📢 Жаңа хабарлама жариялау</h4>
         <select id="p_type">
             <option value="Қызмет">👷 Қызмет (Мамандық)</option>
             <option value="Тауар">📦 Тауар (Сипаттама)</option>
@@ -69,8 +68,8 @@
         <button onclick="addContactRow()" style="background:none; color:var(--blue); font-size:12px; width:auto; border:none; text-decoration:underline;">+ Тағы байланыс қосу</button>
         
         <div style="display:flex; gap:10px; margin-top:15px;">
-            <button onclick="publish(false)" class="btn-send">Тегін жариялау</button>
-            <button onclick="publish(true)" class="btn-vip">💎 VIP жариялау</button>
+            <button onclick="publish(false)" class="btn-send">Тегін (Лезде)</button>
+            <button onclick="publish(true)" class="btn-vip">💎 VIP (Админ тексеруімен)</button>
         </div>
     </div>
 </div>
@@ -90,18 +89,17 @@
     let myToken = localStorage.getItem('token') || "T" + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('token', myToken);
 
-    // Картаны баптау
     let map = L.map('map', {zoomControl: false, preferCanvas: true}).setView([43.2389, 76.8897], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let markers = [];
     let rawData = [];
 
-    // 1. Валидация жүйесі
+    // 1. Стандартты Валидация
     const check = (type, val) => {
         val = val.trim();
         if (type === 'Тел') return /^\+7\d{10}$/.test(val.replace(/\s+/g, ''));
-        if (type === 'Email') return val.includes('@') && val.includes('.');
+        if (type === 'Email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
         return val.length >= 2;
     };
 
@@ -118,7 +116,7 @@
             const r = await fetch(API + '/get-all');
             rawData = await r.json();
             
-            // Санаттарды жаңарту
+            // 7. Санаттарды автоматты жинау
             const catSel = document.getElementById('catFilter');
             const cats = [...new Set(rawData.map(i => i.job))].filter(Boolean);
             catSel.innerHTML = '<option value="">Барлық санаттар</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -128,8 +126,8 @@
         } catch(e) { console.error("Жүктеу қатесі"); }
     }
 
-    // Маркерлер қабаттаспас үшін шағын ығысу (Spiderfier logic)
-    const jitter = () => (Math.random() - 0.5) * 0.0006;
+    // 5. Қабаттаспас үшін ығысу (Jitter)
+    const jitter = () => (Math.random() - 0.5) * 0.0007;
 
     function filterMarkers() {
         markers.forEach(m => map.removeLayer(m));
@@ -143,15 +141,14 @@
             const isOnline = (now - (i.last_ping || 0)) < 40000;
             const isOwner = i.token === myToken;
 
-            // 4. VIP тексеру: Админ рұқсаты болмаса тек иесіне көрінеді
+            // 3 & 4. Көріну логикасы
             if (i.is_vip && !i.is_active && !isOwner) return;
-            // 3. Тегін: Тек иесі онлайн болса көрінеді
             if (!i.is_vip && !isOnline && !isOwner) return;
 
+            // 7. Сұрыптау
             if (cat && i.job !== cat) return;
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
-            // Нақты орын + ығысу
             const mLat = i.lat + jitter();
             const mLon = i.lon + jitter();
             
@@ -165,11 +162,11 @@
             const contactHtml = contacts.map(c => `<div class="info-badge"><b>${c.type}:</b> ${c.val}</div>`).join('');
             const delBtn = isOwner ? `<button onclick="del(${i.id})" class="btn-del">Өшіру</button>` : "";
             
-            // 5. Мини ақпарат Popup
+            // 5. Мини ақпарат (Popup)
             marker.bindPopup(`<b>${i.job}</b><br><small>${i.name}</small><hr>${contactHtml}${delBtn}`);
             markers.push(marker);
 
-            // 6. Көріну аумағындағы тізім
+            // 6. Жақын маңда тізімі
             if (bounds.contains([mLat, mLon])) {
                 count++;
                 listH += `
@@ -188,7 +185,7 @@
     async function publish(isVip) {
         const n = document.getElementById('p_name').value;
         const j = document.getElementById('p_job').value;
-        if (!check('T', n) || !check('T', j)) return alert("Деректерді толық толтырыңыз (мин. 2 таңба)!");
+        if (!check('T', n) || !check('T', j)) return alert("Деректерді толтырыңыз!");
 
         let c = [];
         let ok = true;
@@ -196,16 +193,13 @@
             const t = row.querySelector('.ct').value, v = row.querySelector('.cv').value;
             if (v) {
                 if (check(t, v)) c.push({type: t, val: v});
-                else { ok = false; alert(`${t} қате! Тел: +7 (12 таңба), Email: @ және . болуы шарт.`); }
+                else { ok = false; alert(`${t} форматы қате!`); }
             }
         });
 
         if (!ok || c.length === 0) return;
 
-        // 4. VIP төлем хабарламасы
-        if (isVip) alert("VIP хабарлама админге жіберілді. Төлем расталған соң 24 сағатқа шығады.");
-
-        // Нақты GPS орын (High Accuracy)
+        // Нақты GPS орын
         navigator.geolocation.getCurrentPosition(async pos => {
             await fetch(API + '/save', {
                 method: 'POST',
@@ -216,17 +210,17 @@
                     contacts: JSON.stringify(c), token: myToken
                 })
             });
+            if(isVip) alert("VIP төлем туралы хабарлама админге жіберілді.");
             load();
-        }, () => alert("GPS қосыңыз! Онсыз орын қате көрсетіледі."), { enableHighAccuracy: true });
+        }, () => alert("GPS қосыңыз!"), { enableHighAccuracy: true });
     }
 
     function del(id) { if(confirm("Жоюды растайсыз ба?")) fetch(API+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,token:myToken})}).then(load); }
 
-    // Админ логикасы
     function checkAdmin() {
         if (location.hash === "#admin777") {
             document.getElementById('adminPanel').style.display = 'block';
-            let h = `<table><tr><th>Уақыт</th><th>Аты/Санат</th><th>Байланыс</th><th>Статус</th><th>Әрекет</th></tr>`;
+            let h = `<table><tr><th>Уақыт</th><th>Аты/Санат</th><th>Байланыс</th><th>VIP</th><th>Әрекет</th></tr>`;
             rawData.forEach(i => {
                 let ct = []; try { ct = JSON.parse(i.contacts); } catch(e){}
                 h += `<tr>
