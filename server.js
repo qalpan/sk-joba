@@ -11,73 +11,51 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-let onlineStatus = {}; // Пайдаланушылардың онлайн уақытын сақтау
+let onlineStatus = {};
 
-// Мәліметтер базасын реттеу
-async function initDB() {
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS markers_new (
-            id SERIAL PRIMARY KEY,
-            name TEXT, job TEXT, type TEXT, contacts JSONB,
-            lat DOUBLE PRECISION, lon DOUBLE PRECISION,
-            is_vip BOOLEAN, is_active BOOLEAN DEFAULT FALSE,
-            token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-}
-initDB();
+// Базаны инициализациялау
+pool.query(`
+    CREATE TABLE IF NOT EXISTS markers_new (
+        id SERIAL PRIMARY KEY,
+        name TEXT, job TEXT, type TEXT, contacts TEXT,
+        lat DOUBLE PRECISION, lon DOUBLE PRECISION,
+        is_vip BOOLEAN, is_active BOOLEAN DEFAULT FALSE,
+        token TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
 
-// МЫНА ЖЕРГЕ НАЗАР АУДАРЫҢЫЗ: /ping жолы қосылды (404-ті жояды)
 app.post('/ping', (req, res) => {
-    const { token } = req.body;
-    if (token) {
-        onlineStatus[token] = Date.now();
-    }
-    res.json({ success: true });
+    if (req.body.token) onlineStatus[req.body.token] = Date.now();
+    res.json({success: true});
 });
 
 app.post('/save', async (req, res) => {
-    try {
-        const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
-        const active = !is_vip; // Тегін болса бірден актив, VIP болса админ күтеді
-        await pool.query(
-            'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-            [name, job, type, contacts, lat, lon, is_vip, active, token]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    const { name, job, type, contacts, lat, lon, is_vip, token } = req.body;
+    const active = !is_vip; 
+    await pool.query(
+        'INSERT INTO markers_new (name, job, type, contacts, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [name, job, type, contacts, lat, lon, is_vip, active, token]
+    );
+    res.json({success: true});
 });
 
 app.get('/get-all', async (req, res) => {
     try {
         const r = await pool.query('SELECT * FROM markers_new ORDER BY created_at DESC');
-        const data = r.rows.map(row => ({
-            ...row,
-            last_ping: onlineStatus[row.token] || 0
-        }));
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        res.json(r.rows.map(row => ({ ...row, last_ping: onlineStatus[row.token] || 0 })));
+    } catch(e) { res.status(500).send(e.message); }
 });
 
 app.post('/delete', async (req, res) => {
-    const { id, token } = req.body;
-    await pool.query('DELETE FROM markers_new WHERE id = $1 AND (token = $2 OR $2 = $3)', [id, token, 'admin777']);
-    res.json({ success: true });
+    await pool.query('DELETE FROM markers_new WHERE id = $1 AND (token = $2 OR $2 = $3)', [req.body.id, req.body.token, 'admin777']);
+    res.json({success: true});
 });
 
 app.post('/admin-toggle', async (req, res) => {
-    const { id, active, pass } = req.body;
-    if (pass === "admin777") {
-        await pool.query('UPDATE markers_new SET is_active = $1 WHERE id = $2', [active, id]);
-        res.json({ success: true });
-    } else {
-        res.status(403).json({ error: "Access denied" });
+    if (req.body.pass === "admin777") {
+        await pool.query('UPDATE markers_new SET is_active = $1 WHERE id = $2', [req.body.active, req.body.id]);
+        res.json({success: true});
     }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(10000);
