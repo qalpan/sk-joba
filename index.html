@@ -295,23 +295,27 @@ function filterMarkers() {
     const term = document.getElementById('searchInput').value.toLowerCase();
     const bounds = map.getBounds(); 
     
-    // МАРКЕРЛЕРДІ ТОЛЫҚ ТАЗАЛАУ (Екі рет көрінбеуі үшін маңызды)
+    // 1. ЕСКІ МАРКЕРЛЕРДІ ТАЗАЛАУ
     markersGroup.clearLayers();
     let listHtml = '';
     const now = Date.now();
     let visibleCount = 0;
 
-    // Қайталанатын деректерді біржола жою (uid бойынша сүзу)
+    // 2. ДУБЛИКАТТАРДЫ СҮЗУ (uid бойынша)
     const uniqueData = Array.from(new Map(rawData.map(item => [item.uid, item])).values());
 
     uniqueData.forEach(i => {
-        const isOwner = i.device_token === myToken;
+        // --- ТҮЗЕТІЛГЕН ЖЕРІ: ТОКЕНДІ ТАЗАЛАП ТЕКСЕРУ ---
+        // Серверден келген токеннен 'WAITING_VIP_' сөзін алып тастап барып тексереміз
+        const serverToken = i.device_token || '';
+        const cleanServerToken = serverToken.replace('WAITING_VIP_', '');
+        const isOwner = cleanServerToken === myToken;
         
-        // Екінші құрылғыда көрінуі үшін онлайн уақытын 10 минутқа ұзарттық (сервер уақытымен сәйкес келмесе де көрінеді)
+        // Онлайн статус (10 минут)
         const lastPing = i.last_ping ? new Date(i.last_ping).getTime() : 0;
         const isOnline = (now - lastPing < 600000); 
 
-        // КӨРСЕТУ ШАРТЫ: VIP болса НЕМЕСЕ иесі болса НЕМЕСЕ онлайн болса
+        // КӨРСЕТУ ШАРТЫ: VIP (active=1) НЕМЕСЕ Иесі НЕМЕСЕ Онлайн
         if (i.is_active == 1 || isOwner || isOnline) {
             if(i.info.toLowerCase().includes(term) || i.title.toLowerCase().includes(term)) {
                 
@@ -320,17 +324,19 @@ function filterMarkers() {
                 const color = i.type === 'worker' ? '#007bff' : (i.type === 'good' ? '#ffc107' : '#28a745');
                 const contactsHtml = formatContacts(i);
                 
-                // --- ӨШІРУ БАСПАСЫ (ТЕК VIP МӘРТЕБЕСІ БАР ЖӘНЕ ОНЫҢ ИЕСІНЕ ҒАНА КӨРІНЕДІ) ---
+                // --- ӨШІРУ БАСПАСЫ ---
+                // Егер иесі болса, батырма ӘРҚАШАН шығады (VIP болсын, тегін болсын)
                 let delBtn = "";
-                if (isOwner && i.is_active == 1) {
-                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:8px; border-radius:5px; width:100%; margin-top:10px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">🗑️ VIP Өшіру</button>`;
+                if (isOwner) {
+                    const btnText = i.is_active ? "🗑️ VIP Өшіру" : "🗑️ Өшіру";
+                    delBtn = `<button onclick="deleteItem(${i.id},'${i.type}')" style="background:#ff4d4d; color:white; border:none; padding:8px; border-radius:5px; width:100%; margin-top:10px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">${btnText}</button>`;
                 }
 
-                // Картаға маркер қосу
+                // Маркер
                 const m = L.marker([i.lat, i.lon], {
                     icon: L.divIcon({ 
                         html: `<div style="display:flex;flex-direction:column;align-items:center;">
-                                <div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 15px gold; border:2px solid gold;':''}"></div>
+                                <div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid white;${i.is_active==1?'box-shadow:0 0 15px gold; border:3px solid gold;':''}"></div>
                                 <div class="marker-label">${i.info.substring(0,12)}</div>
                                </div>`,
                         className: '', iconSize: [45, 45], iconAnchor: [22, 10] 
@@ -345,7 +351,7 @@ function filterMarkers() {
                              </div>`);
                 markersGroup.addLayer(m);
 
-                // ТІЗІМГЕ ТЕК КАРТАДАҒЫ КӨРІНІП ТҰРҒАНДАРДЫ ҚОСУ
+                // Тізім
                 if (isInBounds) {
                     visibleCount++;
                     listHtml += `
@@ -353,7 +359,7 @@ function filterMarkers() {
                             <div style="flex:1;">
                                 <b style="font-size:15px;">${i.info}</b><br>
                                 <small style="color:#666;">${i.title}</small>
-                                ${isOwner && i.is_active == 1 ? '<div style="margin-top:5px;">' + delBtn + '</div>' : ''}
+                                <div style="margin-top:5px;">${delBtn}</div>
                             </div>
                             <div style="text-align:right; font-size:12px; color:#333;">${contactsHtml}</div>
                         </div>`;
