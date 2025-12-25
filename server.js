@@ -7,11 +7,11 @@ app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Render-дегі DATABASE_URL-ді қойыңыз
+    connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-// БАЗАНЫ ЖӘНЕ КЕСТЕНІ ДАЙЫНДАУ (1, 3, 4, 5 Талаптар үшін)
+// БАЗА ҚҰРЫЛЫМЫ: Барлық талаптарды қамтиды
 async function initDB() {
     try {
         await pool.query(`
@@ -37,59 +37,73 @@ initDB();
 
 let onlineUsers = {};
 
-// 3, 4, 5 ТАЛАПТАР: Деректерді алу және автоматты өшіру логикасы
+// 3, 4, 6 ТАЛАПТАР: Деректерді алу және 24 сағаттық сүзгі
 app.get('/ads', async (req, res) => {
     try {
-        // Тек соңғы 24 сағаттық деректерді алу
-        const result = await pool.query("SELECT * FROM ads WHERE created_at > NOW() - INTERVAL '24 hours'");
+        // Тек соңғы 24 сағаттық және өзі өшірілмеген хабарламаларды алу
+        const result = await pool.query(
+            "SELECT * FROM ads WHERE created_at > NOW() - INTERVAL '24 hours' ORDER BY is_vip DESC, created_at DESC"
+        );
+        
         const data = result.rows.map(ad => ({
             ...ad,
-            // Иесі соңғы 45 секундта сигнал берсе ғана онлайн
+            // 3-ТАЛАП: Иесі соңғы 45 секундта сигнал берсе ғана онлайн (🟢)
             is_online: (Date.now() - (onlineUsers[ad.token] || 0)) < 45000
         }));
         res.json(data);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 1 & 4 ТАЛАПТАР: Сақтау (VIP болса админ рұқсатын күтеді)
-// server.js ішіндегі save функциясын осылай өзгертіңіз
+// 1, 4 ТАЛАПТАР: Сақтау (Координата дәлдігін сақтау)
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
     
-    // 4-талап: Егер VIP болса, белсенді емес (false) болады. 
-    // Тек админ панельден қолмен қосқанда ғана true болады.
-    const active = is_vip === true ? false : true; 
+    // 4-ТАЛАП: VIP болса, админ рұқсатынсыз (false) көрінбейді.
+    // Тегін хабарлама болса, бірден true болады.
+    const active = (is_vip === true || is_vip === "true") ? false : true; 
 
     try {
         await pool.query(
             "INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-            [name, job, type, tel, email, lat, lon, is_vip, active, token]
+            [
+                name, job, type, tel, email, 
+                parseFloat(lat), parseFloat(lon), // Қате ауданнан шықпау үшін нақты сандар
+                is_vip, active, token
+            ]
         );
         res.json({ success: true });
     } catch (err) { 
         console.error(err);
-        res.status(500).json({ error: "Дерек сақталмады" }); 
+        res.status(500).json({ error: "Дерек базаға жазылмады" }); 
     }
 });
 
+// 5 ТАЛАП: Админ панель - Қосу/Өшіру
+app.post('/admin-toggle', async (req, res) => {
+    const { id, active, pass } = req.body;
+    // Админ құпия сөзі
+    if (pass === "admin777") {
+        try {
+            await pool.query("UPDATE ads SET is_active = $1 WHERE id = $2", [active, id]);
+            res.json({ success: true });
+        } catch (err) { res.status(500).json({ error: "Жаңарту сәтсіз" }); }
+    } else { res.status(403).send("Рұқсат жоқ"); }
+});
+
+// Хабарламаны өшіру (Тек иесіне)
 app.post('/delete', async (req, res) => {
     const { id, token } = req.body;
     await pool.query("DELETE FROM ads WHERE id = $1 AND token = $2", [id, token]);
     res.json({ success: true });
 });
 
-// 5 ТАЛАП: Админ панель функциясы
-app.post('/admin-toggle', async (req, res) => {
-    const { id, active, pass } = req.body;
-    if (pass === "admin777") {
-        await pool.query("UPDATE ads SET is_active = $1 WHERE id = $2", [active, id]);
-        res.json({ success: true });
-    } else { res.status(403).send("Рұқсат жоқ"); }
-});
-
+// Онлайн статусын бақылау
 app.post('/ping', (req, res) => {
-    onlineUsers[req.body.token] = Date.now();
+    if (req.body.token) {
+        onlineUsers[req.body.token] = Date.now();
+    }
     res.send("ok");
 });
 
-app.listen(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Сервер ${PORT} портында қосылды`));
