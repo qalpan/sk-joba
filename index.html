@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Карта Хабарлама - SK Joba</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <style>
         #map { height: 45vh; width: 100%; transition: 0.5s; }
         .grayscale { filter: grayscale(1) brightness(0.8); }
@@ -53,6 +55,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 <script>
     const API = "https://sk-joba.onrender.com"; 
     let myToken = localStorage.getItem('token') || "U" + Math.random().toString(36).substr(2, 9);
@@ -61,8 +64,15 @@
     let map = L.map('map', {zoomControl: false}).setView([43.2389, 76.8897], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+    // Өрмекші торы сияқты жаюға арналған топ
+    let markerCluster = L.markerClusterGroup({
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+    });
+    map.addLayer(markerCluster);
+
     let rawData = [];
-    let markers = [];
 
     // 1-талап: Стандартты тексерулер
     function checkValid() {
@@ -77,10 +87,8 @@
         return true;
     }
 
-    // 3-4-5-6-7 талаптарды біріктіріп өңдеу
     function render() {
-        markers.forEach(m => map.removeLayer(m));
-        markers = [];
+        markerCluster.clearLayers();
         let listH = "", count = 0;
         const search = document.getElementById('search').value.toLowerCase();
         const bounds = map.getBounds();
@@ -88,7 +96,7 @@
         rawData.forEach(i => {
             const isOwner = i.token === myToken;
             
-            // 4-талап: VIP админсіз басқаға көрінбейді
+            // 4-талап: VIP админ рұқсатынсыз басқаға көрінбейді
             if (i.is_vip && !i.is_active && !isOwner) return;
             // 3-талап: Тегін хабарлама тек иесі онлайн болса көрінеді
             if (!i.is_vip && !i.is_online && !isOwner) return;
@@ -96,22 +104,15 @@
             // 7-талап: Іздеу сүзгісі
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
-            const lat = i.lat + (Math.random() - 0.5) * 0.0006;
-            const lon = i.lon + (Math.random() - 0.5) * 0.0006;
-
-            const m = L.circleMarker([lat, lon], { 
-                radius: 10, 
-                color: i.is_vip ? 'gold' : 'blue', 
-                fillColor: i.is_online ? 'green' : 'gray', 
-                fillOpacity: 0.8 
-            }).addTo(map);
+            // Қабаттасуды Cluster өңдейтіндіктен, jitter (random) алынып тасталды
+            const m = L.marker([i.lat, i.lon]);
 
             // 5-талап: Мини ақпарат маркерде
             m.bindPopup(`<b>${i.job}</b><br>📞 ${i.tel}<br>📧 ${i.email}`);
-            markers.push(m);
+            markerCluster.addLayer(m);
 
             // 6-талап: Карта аясындағыларды тізімдеу
-            if (bounds.contains([lat, lon])) {
+            if (bounds.contains([i.lat, i.lon])) {
                 count++;
                 listH += `
                 <div class="card ${i.is_vip ? 'vip' : ''}">
@@ -126,38 +127,37 @@
         document.getElementById('list').innerHTML = listH;
     }
 
-async function saveAd(isVip) {
-    if (!checkValid()) return; // 1-талап: Валидация
+    async function saveAd(isVip) {
+        if (!checkValid()) return;
 
-    // 4-талап: Төлем туралы хабарлама
-    if (isVip) {
-        const confirmPay = confirm("VIP жариялау ақылы. Админге төлем туралы өтінім жіберілсін бе?");
-        if (!confirmPay) return;
+        if (isVip) {
+            const confirmPay = confirm("VIP жариялау ақылы. Админге төлем туралы өтінім жіберілсін бе?");
+            if (!confirmPay) return;
+        }
+
+        navigator.geolocation.getCurrentPosition(async (p) => {
+            const body = {
+                name: document.getElementById('p_name').value,
+                job: document.getElementById('p_job').value,
+                type: document.getElementById('p_type').value,
+                tel: document.getElementById('p_tel').value,
+                email: document.getElementById('p_email').value,
+                lat: p.coords.latitude,
+                lon: p.coords.longitude,
+                is_vip: isVip,
+                token: myToken
+            };
+
+            await fetch(API + '/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+
+            alert(isVip ? "VIP күтуде. Төлем расталған соң шығады." : "Тегін хабарлама лезде қосылды!");
+            load();
+        }, () => alert("GPS қосыңыз!"));
     }
-
-    navigator.geolocation.getCurrentPosition(async (p) => {
-        const body = {
-            name: document.getElementById('p_name').value,
-            job: document.getElementById('p_job').value,
-            type: document.getElementById('p_type').value,
-            tel: document.getElementById('p_tel').value,
-            email: document.getElementById('p_email').value,
-            lat: p.coords.latitude,
-            lon: p.coords.longitude,
-            is_vip: isVip,
-            token: myToken
-        };
-
-        await fetch(API + '/save', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
-        });
-
-        alert(isVip ? "VIP күтуде. Төлем расталған соң шығады." : "Тегін хабарлама лезде қосылды!");
-        load();
-    }, () => alert("GPS қосыңыз!"));
-}
 
     async function load() {
         try {
@@ -178,7 +178,6 @@ async function saveAd(isVip) {
         load();
     }
 
-    // 5-талап: Админ панель кестесі
     function checkAdmin() {
         if (location.hash === "#admin777") {
             document.getElementById('adminPanel').style.display = 'block';
