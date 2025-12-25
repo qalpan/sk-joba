@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-  connectionString: "СІЗДІҢ_POSTGRES_СІЛТЕМЕҢІЗ", // Мысалы: Render-дегі Internal Database URL
+  connectionString: "postgresql://sk:SfL9TwkwrZNWCccCuKp0etjIruz13Al0@dpg-d542tvjuibrs7387li40-a/sk_db_8g6q", // Мысалы: Render-дегі Internal Database URL
   ssl: { rejectUnauthorized: false }
 });
 
