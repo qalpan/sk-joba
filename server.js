@@ -50,13 +50,10 @@ app.get('/ads', async (req, res) => {
 });
 
 // 4-талап: VIP Бұғаттау (Түзетілген)
+// server.js кодындағы save бөлігі өзгеріссіз қабылдай береді
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
-    
-    // Клиенттен 'true' мәтіні келсе де дұрыс қабылдау
     const isVipBool = (is_vip === true || is_vip === 'true');
-    
-    // VIP болса -> active=false (жасырын), VIP болмаса -> active=true (ашық)
     const active = isVipBool ? false : true; 
 
     try {
