@@ -86,13 +86,22 @@
 
     let rawData = [];
 
-    // 1-талап: Валидация
+    // 1-талап: Валидация (Қатаң тексеру)
     function checkValid() {
-        const n = document.getElementById('p_name').value, j = document.getElementById('p_job').value,
-              t = document.getElementById('p_tel').value, e = document.getElementById('p_email').value;
+        const n = document.getElementById('p_name').value, 
+              j = document.getElementById('p_job').value,
+              t = document.getElementById('p_tel').value, 
+              e = document.getElementById('p_email').value;
+        
+        // Аты мен жұмыс - 2 таңбадан көп
         if (n.length < 2 || j.length < 2) return alert("Атыңыз немесе мәтін кемінде 2 таңба!");
-        if (!/^\+7\d{10}$/.test(t)) return alert("Тел форматы: +77001234567 (12 таңба)!");
-        if (!e.includes('@') || !e.includes('.')) return alert("Email қате!");
+        
+        // Тел: +7 және 10 сан (барлығы 12 таңба)
+        if (!/^\+7\d{10}$/.test(t)) return alert("Тел форматы қате! Дұрысы: +77001234567 (12 таңба)");
+        
+        // Email: @ және . болуы шарт
+        if (!e.includes('@') || !e.includes('.')) return alert("Email қате! (@ және . болуы шарт)");
+        
         return true;
     }
 
@@ -108,7 +117,7 @@
             // 4-талап: VIP - Админ рұқсатынсыз (is_active: false) БАСҚАЛАРҒА КӨРІНБЕЙДІ
             if (i.is_vip && !i.is_active && !isOwner) return;
             
-            // 3-талап: Тегін - Иесі ОНЛАЙН болмаса КӨРІНБЕЙДІ
+            // 3-талап: Тегін - Иесі ОНЛАЙН болмаса КӨРІНБЕЙДІ (және VIP емес болса)
             if (!i.is_vip && !i.is_online && !isOwner) return;
 
             // 7-талап: Іздеу
@@ -122,17 +131,23 @@
             });
 
             const m = L.marker([i.lat, i.lon], {icon: icon});
-            m.bindPopup(`<b>${i.name}</b><br>${i.job}<br>📞 ${i.tel}<br>📧 ${i.email}`);
+            // ЕГЕР VIP (әлі мақұлданбаған) болса, иесіне ескерту жазу
+            let statusNote = "";
+            if (i.is_vip && !i.is_active) statusNote = "<br><b>⚠️ (Админ тексеруінде)</b>";
+
+            m.bindPopup(`<b>${i.name}</b>${statusNote}<br>${i.job}<br>📞 ${i.tel}<br>📧 ${i.email}`);
             
             // Маркерді картаға емес, КЛАСТЕРГЕ қосамыз (қабаттасуды шешу үшін)
             markerCluster.addLayer(m);
 
+            // 6-талап: Жақын маңда тізімі
             if (bounds.contains([i.lat, i.lon])) {
                 count++;
                 listH += `<div class="card ${i.is_vip?'vip':''}">
                     ${isOwner ? `<button onclick="deleteAd(${i.id})" class="del-btn">Өшіру</button>` : ''}
                     <b>${i.job}</b> <small>(${i.type})</small> ${i.is_online ? '🟢' : '⚪'}<br>
                     <small>📞 ${i.tel} | 📧 ${i.email}</small>
+                    ${i.is_vip && !i.is_active ? '<br><small style="color:red">Админ рұқсатын күтуде...</small>' : ''}
                 </div>`;
             }
         });
@@ -157,7 +172,7 @@
                 token: myToken
             };
             await fetch(API + '/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-            alert(isVip ? "VIP төлемі тексерілуде. Админ рұқсатынан кейін шығады." : "Сәтті жарияланды!");
+            alert(isVip ? "VIP төлемі тексерілуде. Сізге картада көрінеді, БІРАҚ БАСҚАЛАРҒА админ рұқсатынан кейін ғана шығады." : "Сәтті жарияланды!");
             load();
         }, () => alert("GPS қосыңыз!"));
     }
