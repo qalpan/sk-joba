@@ -35,7 +35,9 @@ initDB();
 
 let onlineUsers = {};
 
-// 3-талап: 24 сағаттық сүзгі
+// 3-талап және Сұрағыңызға жауап:
+// "WHERE created_at > NOW() - INTERVAL '24 hours'"
+// Бұл жол 24 сағаттан ескі хабарламаларды автоматты түрде тізімнен алып тастайды.
 app.get('/ads', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM ads WHERE created_at > NOW() - INTERVAL '24 hours'");
@@ -47,14 +49,14 @@ app.get('/ads', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4-талап: VIP БҰҒАТТАУ (Ең маңызды жері осында!)
+// 4-талап: VIP Бұғаттау (Түзетілген)
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
     
-    // ТҮЗЕТУ: "true" мәтіні келсе де, true логикасы келсе де VIP деп тану
+    // Клиенттен 'true' мәтіні келсе де дұрыс қабылдау
     const isVipBool = (is_vip === true || is_vip === 'true');
     
-    // Егер VIP болса - active=false (жасыру), болмаса - active=true (көрсету)
+    // VIP болса -> active=false (жасырын), VIP болмаса -> active=true (ашық)
     const active = isVipBool ? false : true; 
 
     try {
@@ -63,10 +65,7 @@ app.post('/save', async (req, res) => {
             [name, job, type, tel, email, lat, lon, isVipBool, active, token]
         );
         res.json({ success: true });
-    } catch (err) { 
-        console.error(err);
-        res.status(500).json({ error: "Қате" }); 
-    }
+    } catch (err) { res.status(500).json({ error: "Қате" }); }
 });
 
 app.post('/admin-toggle', async (req, res) => {
