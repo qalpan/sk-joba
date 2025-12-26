@@ -2,6 +2,7 @@
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Карта Хабарлама - SK Joba</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -9,59 +10,78 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 
     <style>
-        #map { height: 45vh; width: 100%; transition: 0.5s; }
+        /* Мобильді стильдер */
+        body { margin: 0; background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; }
+        
+        #map { height: 50vh; width: 100%; z-index: 1; } /* Карта экранның жартысын алады */
+        
+        .container { padding: 15px; background: white; border-top-left-radius: 15px; border-top-right-radius: 15px; position: relative; top: -15px; z-index: 2; }
+
         .grayscale { filter: grayscale(1) brightness(0.8); }
         
-        /* 5-талап: Мини ақпарат стилі - жинақы және әдеми */
+        /* 5-талап: Мини ақпарат стилі (ірірек жасалды) */
         .mini-label { 
-            background: white; 
-            border: 1px solid #666; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 11px; 
-            white-space: nowrap; 
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            text-align: center;
+            background: white; border: 1px solid #666; padding: 4px 8px; 
+            border-radius: 5px; font-size: 12px; font-weight: bold; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); text-align: center; white-space: nowrap;
         }
 
-        .card { border-left: 5px solid #007bff; padding: 10px; margin: 10px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 5px; }
+        .card { border-left: 5px solid #007bff; padding: 15px; margin: 10px 0; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 8px; }
         .card.vip { border-left-color: gold; background: #fffef0; }
         
-        #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:2000; padding:20px; overflow:auto; }
-        input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px 10px; font-size: 11px; cursor: pointer; float: right; }
+        /* Батырмалар мен инпуттар саусақпен басуға ыңғайлы болуы үшін үлкейтілді */
+        input, select, button { 
+            width: 100%; padding: 14px; margin-top: 10px; 
+            border-radius: 8px; border: 1px solid #ccc; 
+            font-size: 16px; box-sizing: border-box; 
+        }
+        
+        /* Түс өзгерту батырмасы */
+        .btn-toggle { background: #333; color: #fff; border: none; font-weight: bold; }
+        
+        .btn-post { background: #28a745; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+        .btn-vip { background: gold; color: #000; border: none; font-weight: bold; cursor: pointer; }
+        .del-btn { background: #ff4d4d; color: white; border: none; padding: 8px 12px; font-size: 12px; cursor: pointer; float: right; border-radius: 4px; }
+
+        #adminPanel { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:3000; padding:20px; overflow:auto; }
+        
+        /* Popup ішіндегі мәтінді үлкейту */
+        .leaflet-popup-content { font-size: 14px; line-height: 1.5; }
     </style>
 </head>
-<body style="margin:0; background:#f0f2f5; font-family:sans-serif;">
+<body>
 
 <div id="map"></div>
 
-<div style="padding:15px;">
-    <button onclick="document.getElementById('map').classList.toggle('grayscale')" style="background:#333; color:#fff;">🌓 Түсті / Ақ-қара карта</button>
+<div class="container">
+    <button onclick="document.getElementById('map').classList.toggle('grayscale')" class="btn-toggle">🌓 Карта түсін өзгерту</button>
 
-    <input type="text" id="search" placeholder="🔍 Санат, мамандық немесе тауар..." oninput="render()">
+    <input type="text" id="search" placeholder="🔍 Іздеу (Мамандық, тауар...)" oninput="render()">
 
-    <h4 style="margin:10px 0;">📍 Жақын маңда: (<span id="count">0</span>)</h4>
-    <div id="list" style="max-height: 200px; overflow-y: auto;"></div>
+    <h4 style="margin:15px 0 5px;">📍 Жақын маңда: (<span id="count">0</span>)</h4>
+    <div id="list" style="max-height: 30vh; overflow-y: auto;"></div>
 
-    <hr>
-    <h4>📢 Жаңа хабарлама</h4>
-    <select id="p_type"><option>Қызмет</option><option>Тауар</option><option>Тапсырыс</option></select>
-    <input id="p_name" placeholder="Атыңыз (мин. 2 таңба)">
-    <input id="p_job" placeholder="Қандай қызмет немесе тауар?">
-    <input id="p_tel" placeholder="Тел: +77001234567 (12 таңба)">
-    <input id="p_email" placeholder="Email: example@mail.kz">
+    <hr style="margin: 20px 0;">
     
-    <div style="display:flex; gap:10px;">
-        <button onclick="saveAd(false)" style="background:#28a745; color:#fff; border:none; cursor:pointer; width:100%;">Тегін (Лезде)</button>
-        <button onclick="saveAd(true)" style="background:gold; color:#000; border:none; cursor:pointer; width:100%;">💎 VIP (Админнен соң)</button>
+    <h3 style="text-align:center;">📢 Хабарландыру беру</h3>
+    <select id="p_type"><option>Қызмет</option><option>Тауар</option><option>Тапсырыс</option></select>
+    <input id="p_name" placeholder="Сіздің атыңыз (мин. 2 әріп)">
+    <input id="p_job" placeholder="Не ұсынасыз? (Қызмет/Тауар)">
+    <input id="p_tel" type="tel" placeholder="Тел: +77001234567">
+    <input id="p_email" type="email" placeholder="Email: example@mail.kz">
+    
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button onclick="saveAd(false)" class="btn-post">Тегін (Лезде)</button>
+        <button onclick="saveAd(true)" class="btn-vip">💎 VIP (Админ)</button>
     </div>
 </div>
 
 <div id="adminPanel">
-    <div style="display:flex; justify-content:space-between;"><h2>🛡 Админ Панель</h2><button onclick="location.hash=''" style="width:auto;">Жабу</button></div>
-    <div id="admin-table"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🛡 Админ</h2>
+        <button onclick="location.hash=''" style="width:auto; background:#333; color:white;">Жабу</button>
+    </div>
+    <div id="admin-table" style="overflow-x:auto;"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -75,38 +95,31 @@
     let map = L.map('map', {zoomControl: false}).setView([43.2389, 76.8897], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // МАРКЕРЛЕРДІ ТОПТАУ ЖҮЙЕСІ (Кластер)
-    // spiderfyOnMaxZoom: true - маркерлер қабаттасса, басқанда шашырайды
     let markerCluster = L.markerClusterGroup({
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 40 // Телефонда жинақы болу үшін
     });
     map.addLayer(markerCluster);
 
     let rawData = [];
 
-    // 1-талап: Валидация (Қатаң тексеру)
+    // 1-талап: Валидация
     function checkValid() {
-        const n = document.getElementById('p_name').value, 
-              j = document.getElementById('p_job').value,
-              t = document.getElementById('p_tel').value, 
-              e = document.getElementById('p_email').value;
-        
-        // Аты мен жұмыс - 2 таңбадан көп
+        const n = document.getElementById('p_name').value.trim();
+        const j = document.getElementById('p_job').value.trim();
+        const t = document.getElementById('p_tel').value.trim();
+        const e = document.getElementById('p_email').value.trim();
+
         if (n.length < 2 || j.length < 2) return alert("Атыңыз немесе мәтін кемінде 2 таңба!");
-        
-        // Тел: +7 және 10 сан (барлығы 12 таңба)
-        if (!/^\+7\d{10}$/.test(t)) return alert("Тел форматы қате! Дұрысы: +77001234567 (12 таңба)");
-        
-        // Email: @ және . болуы шарт
-        if (!e.includes('@') || !e.includes('.')) return alert("Email қате! (@ және . болуы шарт)");
-        
+        if (!/^\+7\d{10}$/.test(t)) return alert("Тел нөмірі қате! +77001234567 форматында жазыңыз.");
+        if (!e.includes('@') || !e.includes('.')) return alert("Email қате! (@ белгісі керек)");
         return true;
     }
 
     function render() {
-        markerCluster.clearLayers(); // Ескі маркерлерді өшіру
+        markerCluster.clearLayers();
         let listH = "", count = 0;
         const search = document.getElementById('search').value.toLowerCase();
         const bounds = map.getBounds();
@@ -114,40 +127,37 @@
         rawData.forEach(i => {
             const isOwner = i.token === myToken;
             
-            // 4-талап: VIP - Админ рұқсатынсыз (is_active: false) БАСҚАЛАРҒА КӨРІНБЕЙДІ
+            // 4-талап: VIP болса және АДМИН ҚОСПАСА -> Тек иесіне көрінеді
             if (i.is_vip && !i.is_active && !isOwner) return;
             
-            // 3-талап: Тегін - Иесі ОНЛАЙН болмаса КӨРІНБЕЙДІ (және VIP емес болса)
+            // 3-талап: Тегін болса және ОФЛАЙН болса -> Тек иесіне көрінеді
             if (!i.is_vip && !i.is_online && !isOwner) return;
 
             // 7-талап: Іздеу
             if (search && !i.job.toLowerCase().includes(search) && !i.name.toLowerCase().includes(search)) return;
 
-            // 5-талап: Мини ақпарат (label)
+            // 5-талап: Мини ақпарат
             const icon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div class="mini-label" style="border-left: 3px solid ${i.is_vip?'gold':'blue'}">${i.job.substring(0,12)}..</div>`,
-                iconSize: [80, 20], iconAnchor: [40, 0]
+                html: `<div class="mini-label" style="border-left: 4px solid ${i.is_vip?'gold':'blue'}">${i.job.substring(0,12)}..</div>`,
+                iconSize: [100, 30], iconAnchor: [50, 0]
             });
 
             const m = L.marker([i.lat, i.lon], {icon: icon});
-            // ЕГЕР VIP (әлі мақұлданбаған) болса, иесіне ескерту жазу
-            let statusNote = "";
-            if (i.is_vip && !i.is_active) statusNote = "<br><b>⚠️ (Админ тексеруінде)</b>";
-
-            m.bindPopup(`<b>${i.name}</b>${statusNote}<br>${i.job}<br>📞 ${i.tel}<br>📧 ${i.email}`);
             
-            // Маркерді картаға емес, КЛАСТЕРГЕ қосамыз (қабаттасуды шешу үшін)
+            let statusText = "";
+            if(i.is_vip && !i.is_active) statusText = "<br><b style='color:orange'>⏳ Тексерілуде...</b>";
+            
+            m.bindPopup(`<b>${i.name}</b>${statusText}<br>${i.job}<br><a href="tel:${i.tel}" style="font-size:14px; font-weight:bold;">📞 ${i.tel}</a><br>📧 ${i.email}`);
             markerCluster.addLayer(m);
 
-            // 6-талап: Жақын маңда тізімі
             if (bounds.contains([i.lat, i.lon])) {
                 count++;
                 listH += `<div class="card ${i.is_vip?'vip':''}">
                     ${isOwner ? `<button onclick="deleteAd(${i.id})" class="del-btn">Өшіру</button>` : ''}
                     <b>${i.job}</b> <small>(${i.type})</small> ${i.is_online ? '🟢' : '⚪'}<br>
-                    <small>📞 ${i.tel} | 📧 ${i.email}</small>
-                    ${i.is_vip && !i.is_active ? '<br><small style="color:red">Админ рұқсатын күтуде...</small>' : ''}
+                    <small>📞 ${i.tel}</small>
+                    ${i.is_vip && !i.is_active ? '<br><small style="color:red">Админ рұқсатын күтуде (басқаларға көрінбейді)</small>' : ''}
                 </div>`;
             }
         });
@@ -157,7 +167,7 @@
 
     async function saveAd(isVip) {
         if (!checkValid()) return;
-        if (isVip && !confirm("VIP жариялау ақылы. Төлем туралы админге өтінім жіберілсін бе?")) return;
+        if (isVip && !confirm("VIP жариялау ақылы. Төлем туралы сұраныс жіберілсін бе?")) return;
 
         navigator.geolocation.getCurrentPosition(async (p) => {
             const body = {
@@ -172,7 +182,7 @@
                 token: myToken
             };
             await fetch(API + '/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-            alert(isVip ? "VIP төлемі тексерілуде. Сізге картада көрінеді, БІРАҚ БАСҚАЛАРҒА админ рұқсатынан кейін ғана шығады." : "Сәтті жарияланды!");
+            alert(isVip ? "VIP сұранысы жіберілді. Админ растаған соң картада баршаға көрінеді." : "Жарияланды!");
             load();
         }, () => alert("GPS қосыңыз!"));
     }
@@ -184,14 +194,14 @@
             render();
             if (location.hash === "#admin777") {
                 document.getElementById('adminPanel').style.display = 'block';
-                let h = `<table border="1" style="width:100%; border-collapse:collapse;"><tr><th>Уақыт</th><th>Деректер</th><th>VIP</th><th>Әрекет</th></tr>`;
+                let h = `<table border="1" style="width:100%; border-collapse:collapse; min-width:400px;"><tr><th>Уақыт</th><th>Ақпарат</th><th>VIP</th><th>Статус</th></tr>`;
                 rawData.forEach(i => {
-                    h += `<tr><td>${new Date(i.created_at).toLocaleString()}</td><td>${i.job}<br>${i.tel}</td><td>${i.is_vip?'💎':''}</td>
+                    h += `<tr><td>${new Date(i.created_at).toLocaleTimeString()}</td><td>${i.job}<br>${i.tel}</td><td>${i.is_vip?'💎':''}</td>
                     <td><button onclick="admAct(${i.id},${!i.is_active})">${i.is_active?'Өшіру':'Қосу'}</button></td></tr>`;
                 });
                 document.getElementById('admin-table').innerHTML = h + `</table>`;
             }
-        } catch(e) { console.error("Error loading ads"); }
+        } catch(e) { console.error("Error"); }
     }
 
     async function admAct(id, act) {
