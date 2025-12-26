@@ -11,17 +11,22 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// База және автоматты өшіру (24 сағат)
 async function initDB() {
     try {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS ads (
                 id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL, job TEXT NOT NULL, type TEXT NOT NULL,
-                tel TEXT NOT NULL, email TEXT NOT NULL,
-                lat DOUBLE PRECISION NOT NULL, lon DOUBLE PRECISION NOT NULL,
-                is_vip BOOLEAN DEFAULT FALSE, is_active BOOLEAN DEFAULT TRUE,
-                token TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                name TEXT NOT NULL,
+                job TEXT NOT NULL,
+                type TEXT NOT NULL,
+                tel TEXT NOT NULL,
+                email TEXT NOT NULL,
+                lat DOUBLE PRECISION NOT NULL,
+                lon DOUBLE PRECISION NOT NULL,
+                is_vip BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                token TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
     } catch (err) { console.error("База қатесі:", err); }
@@ -30,7 +35,7 @@ initDB();
 
 let onlineUsers = {};
 
-// 3, 4-талап: 24 сағаттық автоматты сүзгі
+// 3-талап: 24 сағаттық сүзгі
 app.get('/ads', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM ads WHERE created_at > NOW() - INTERVAL '24 hours'");
@@ -42,17 +47,26 @@ app.get('/ads', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4-талап: VIP болса админ рұқсатын (false) күтеді
+// 4-талап: VIP БҰҒАТТАУ (Ең маңызды жері осында!)
 app.post('/save', async (req, res) => {
     const { name, job, type, tel, email, lat, lon, is_vip, token } = req.body;
-    const active = is_vip === true ? false : true; 
+    
+    // ТҮЗЕТУ: "true" мәтіні келсе де, true логикасы келсе де VIP деп тану
+    const isVipBool = (is_vip === true || is_vip === 'true');
+    
+    // Егер VIP болса - active=false (жасыру), болмаса - active=true (көрсету)
+    const active = isVipBool ? false : true; 
+
     try {
         await pool.query(
             "INSERT INTO ads (name, job, type, tel, email, lat, lon, is_vip, is_active, token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-            [name, job, type, tel, email, lat, lon, is_vip, active, token]
+            [name, job, type, tel, email, lat, lon, isVipBool, active, token]
         );
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Қате" }); }
+    } catch (err) { 
+        console.error(err);
+        res.status(500).json({ error: "Қате" }); 
+    }
 });
 
 app.post('/admin-toggle', async (req, res) => {
